@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RUBIES_4233_28812 - MSA-CEERS 查找器</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: Inter, Arial, sans-serif;
+            background: #F3F6FA;
+            color: #172033;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* 左侧栏 */
+        .sidebar {
+            width: 300px;
+            background: #0F1B2D;
+            position: fixed;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 100;
+        }
+
+        .sidebar-header {
+            padding: 24px;
+            border-bottom: 1px solid #202D40;
+        }
+
+        .sidebar-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #FFFFFF;
+            margin-bottom: 8px;
+        }
+
+        .sidebar-subtitle {
+            font-size: 13px;
+            color: #64748B;
+            line-height: 1.4;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            color: #65A8FF;
+            text-decoration: none;
+            font-size: 13px;
+            margin-bottom: 16px;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: #FFFFFF;
+        }
+
+        .source-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 16px 16px;
+        }
+
+        .source-item {
+            background: #202D40;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .source-item:hover {
+            background: #2A3D52;
+        }
+
+        .source-item.active {
+            background: #214B8F;
+            border-color: #65A8FF;
+        }
+
+        .source-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #FFFFFF;
+            margin-bottom: 4px;
+        }
+
+        .source-meta {
+            font-size: 12px;
+            color: #64748B;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* 右侧主工作区 */
+        .main-content {
+            margin-left: 300px;
+            flex: 1;
+            padding: 32px;
+            max-width: calc(100vw - 300px);
+        }
+
+        .card {
+            background: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            border-radius: 10px;
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+
+        /* 对象概览头部 */
+        .object-header {
+            background: linear-gradient(135deg, #214B8F 0%, #1E3A5F 100%);
+            padding: 32px;
+            color: white;
+        }
+
+        .object-title {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .object-subtitle {
+            font-size: 14px;
+            color: rgba(255,255,255,0.7);
+            margin-bottom: 24px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+        }
+
+        .metric {
+            background: rgba(255,255,255,0.1);
+            padding: 12px 16px;
+            border-radius: 6px;
+        }
+
+        .metric-label {
+            font-size: 11px;
+            color: rgba(255,255,255,0.6);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            font-size: 16px;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* 卡片标题 */
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #172033;
+            padding: 20px 24px;
+            border-bottom: 1px solid #E2E8F0;
+        }
+
+        .card-subtitle {
+            font-size: 13px;
+            color: #64748B;
+            margin-top: 4px;
+        }
+
+        /* 图像区 */
+        .image-gallery {
+            padding: 24px;
+            overflow-x: auto;
+        }
+
+        .image-container {
+            display: flex;
+            gap: 16px;
+        }
+
+        .image-item {
+            flex-shrink: 0;
+            width: 200px;
+        }
+
+        .image-item img {
+            width: 100%;
+            height: 200px;
+            object-fit: contain;
+            background: #000;
+            border: 1px solid #E2E8F0;
+            border-radius: 6px;
+        }
+
+        .image-label {
+            font-size: 12px;
+            color: #64748B;
+            text-align: center;
+            margin-top: 8px;
+        }
+
+        /* 光谱区 */
+        .spectrum-container {
+            padding: 24px;
+            height: 450px;
+        }
+
+        /* 发射线表格 */
+        .emission-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .emission-table th {
+            background: #F8FAFC;
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #172033;
+            border-bottom: 1px solid #E2E8F0;
+        }
+
+        .emission-table td {
+            padding: 10px 16px;
+            border-bottom: 1px solid #E2E8F0;
+        }
+
+        .emission-table tr.highlight-row {
+            background: rgba(37, 99, 235, 0.05);
+        }
+
+        .emission-table tr:hover {
+            background: #F8FAFC;
+        }
+
+        .yes-text {
+            color: #2563EB;
+            font-weight: 600;
+        }
+
+        .no-text {
+            color: #94A3B8;
+        }
+
+        .download-btn {
+            display: inline-block;
+            background: #2563EB;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 13px;
+            transition: background 0.2s;
+            margin: 20px 24px;
+        }
+
+        .download-btn:hover {
+            background: #1D4ED8;
+        }
+
+        .no-data {
+            padding: 32px;
+            text-align: center;
+            color: #94A3B8;
+        }
+
+        /* 响应式 */
+        @media (max-width: 1024px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+                padding: 16px;
+            }
+
+            .metrics-grid {
+                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            }
+        }
+    </style>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+</head>
+<body>
+    <!-- 左侧栏 -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <a href="../index.html" class="back-link">← 返回主页</a>
+            <div class="sidebar-title">MSA-CEERS 查找器</div>
+            <div class="sidebar-subtitle">源数据浏览器</div>
+        </div>
+
+        <div class="source-list">
+
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_61496')">
+                        <div class="source-name">RUBIES_4233_61496</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_50052')">
+                        <div class="source-name">RUBIES_4233_50052</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('CEERS-672')">
+                        <div class="source-name">CEERS-672</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES-EGS-50812')">
+                        <div class="source-name">RUBIES-EGS-50812</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_13872')">
+                        <div class="source-name">RUBIES_4233_13872</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_58237')">
+                        <div class="source-name">RUBIES_4233_58237</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-927271')">
+                        <div class="source-name">EGS-927271</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_41683')">
+                        <div class="source-name">RUBIES_4233_41683</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES-EGS-17146')">
+                        <div class="source-name">RUBIES-EGS-17146</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-952625')">
+                        <div class="source-name">EGS-952625</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_37124')">
+                        <div class="source-name">RUBIES_4233_37124</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('VALENTINO_3567_40442')">
+                        <div class="source-name">VALENTINO_3567_40442</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES-EGS-45599')">
+                        <div class="source-name">RUBIES-EGS-45599</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-931291')">
+                        <div class="source-name">EGS-931291</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-17301')">
+                        <div class="source-name">EGS-17301</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_55604')">
+                        <div class="source-name">RUBIES_4233_55604</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_42232')">
+                        <div class="source-name">RUBIES_4233_42232</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES-EGS-920')">
+                        <div class="source-name">RUBIES-EGS-920</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_29489')">
+                        <div class="source-name">RUBIES_4233_29489</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_41926')">
+                        <div class="source-name">RUBIES_4233_41926</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_925921')">
+                        <div class="source-name">RUBIES_4233_925921</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_24210')">
+                        <div class="source-name">RUBIES_4233_24210</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-46724')">
+                        <div class="source-name">EGS-46724</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS_4106_47962')">
+                        <div class="source-name">EGS_4106_47962</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES-EGS-46985')">
+                        <div class="source-name">RUBIES-EGS-46985</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_45502')">
+                        <div class="source-name">RUBIES_4233_45502</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES-EGS-19174')">
+                        <div class="source-name">RUBIES-EGS-19174</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_42046')">
+                        <div class="source-name">RUBIES_4233_42046</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_6411')">
+                        <div class="source-name">RUBIES_4233_6411</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_37032')">
+                        <div class="source-name">RUBIES_4233_37032</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_60935')">
+                        <div class="source-name">RUBIES_4233_60935</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-34978')">
+                        <div class="source-name">EGS-34978</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-966323')">
+                        <div class="source-name">EGS-966323</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_926125')">
+                        <div class="source-name">RUBIES_4233_926125</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS_4106_57146')">
+                        <div class="source-name">EGS_4106_57146</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-53254')">
+                        <div class="source-name">EGS-53254</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('VALENTINO_3567_44021')">
+                        <div class="source-name">VALENTINO_3567_44021</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('VALENTINO_3567_20910')">
+                        <div class="source-name">VALENTINO_3567_20910</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_15825')">
+                        <div class="source-name">RUBIES_4233_15825</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-70473')">
+                        <div class="source-name">EGS-70473</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('CEERS_1345_746')">
+                        <div class="source-name">CEERS_1345_746</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item active" onclick="selectSource('RUBIES_4233_28812')">
+                        <div class="source-name">RUBIES_4233_28812</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('VALENTINO_3567_53035')">
+                        <div class="source-name">VALENTINO_3567_53035</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-959367')">
+                        <div class="source-name">EGS-959367</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_42803')">
+                        <div class="source-name">RUBIES_4233_42803</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_25712')">
+                        <div class="source-name">RUBIES_4233_25712</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('CEERS-397')">
+                        <div class="source-name">CEERS-397</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('GTO_1213_3848')">
+                        <div class="source-name">GTO_1213_3848</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+        </div>
+    </div>
+
+    <!-- 右侧主工作区 -->
+    <div class="main-content">
+        <!-- 对象概览头部 -->
+        <div class="card">
+            <div class="object-header">
+                <div class="object-title">RUBIES_4233_28812</div>
+                <div class="object-subtitle">JWST CEERS巡天匹配源</div>
+                <div class="metrics-grid">
+                    <div class="metric">
+                        <div class="metric-label">源 ID</div>
+                        <div class="metric-value">RUBIES_4233_28812</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">RA</div>
+                        <div class="metric-value">214.924149°</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Dec</div>
+                        <div class="metric-value">52.849050°</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">z_use</div>
+                        <div class="metric-value">4.2246</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">z_best</div>
+                        <div class="metric-value">4.2246</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">z_phot</div>
+                        <div class="metric-value">4.2246</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">波段</div>
+                        <div class="metric-value">7</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">光谱</div>
+                        <div class="metric-value">✓</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图像浏览区 -->
+        <div class="card">
+            <div class="card-title">多波段图像</div>
+            <div class="image-gallery">
+                <div class="image-container">
+
+                <div class="image-item">
+                    <img src="../images/bands/RUBIES_4233_28812_multiband.png" alt="F115W">
+                    <div class="image-label">F115W</div>
+                </div>
+                <div class="image-item">
+                    <img src="../images/bands/RUBIES_4233_28812_multiband.png" alt="F150W">
+                    <div class="image-label">F150W</div>
+                </div>
+                <div class="image-item">
+                    <img src="../images/bands/RUBIES_4233_28812_multiband.png" alt="F200W">
+                    <div class="image-label">F200W</div>
+                </div>
+                <div class="image-item">
+                    <img src="../images/bands/RUBIES_4233_28812_multiband.png" alt="F277W">
+                    <div class="image-label">F277W</div>
+                </div>
+                <div class="image-item">
+                    <img src="../images/bands/RUBIES_4233_28812_multiband.png" alt="F356W">
+                    <div class="image-label">F356W</div>
+                </div>
+                <div class="image-item">
+                    <img src="../images/bands/RUBIES_4233_28812_multiband.png" alt="F410M">
+                    <div class="image-label">F410M</div>
+                </div>
+                <div class="image-item">
+                    <img src="../images/bands/RUBIES_4233_28812_multiband.png" alt="F444W">
+                    <div class="image-label">F444W</div>
+                </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 光谱图表区 -->
+        <div class="card">
+            <div class="card-title">光谱数据</div>
+            <div class="spectrum-container" id="spectrum-plot"></div>
+            <a href="../downloads/RUBIES_4233_28812_spectrum.fits" download class="download-btn">下载高分辨率光谱 (FITS)</a>
+        </div>
+
+        <!-- 发射线表格 -->
+        
+        <div class="card">
+            <div class="card-title">发射线识别</div>
+            <div class="card-subtitle">蓝色高亮表示该发射线在观测光谱范围内</div>
+            <div style="padding: 0 24px 24px;">
+                <table class="emission-table">
+                    <thead>
+                        <tr>
+                            <th>Line</th>
+                            <th>Rest wavelength [Å]</th>
+                            <th>Observed wavelength [μm]</th>
+                            <th>In spectrum range</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+<tr class="highlight-row">
+                    <td>Lyα</td>
+                    <td>1215.67</td>
+                    <td>0.6351</td>
+                    <td><span class="yes-text">yes</span></td>
+                </tr><tr class="highlight-row">
+                    <td>C IV</td>
+                    <td>1549.00</td>
+                    <td>0.8093</td>
+                    <td><span class="yes-text">yes</span></td>
+                </tr><tr class="highlight-row">
+                    <td>He II</td>
+                    <td>1640.00</td>
+                    <td>0.8568</td>
+                    <td><span class="yes-text">yes</span></td>
+                </tr><tr class="highlight-row">
+                    <td>C III]</td>
+                    <td>1908.70</td>
+                    <td>0.9972</td>
+                    <td><span class="yes-text">yes</span></td>
+                </tr><tr class="highlight-row">
+                    <td>Mg II</td>
+                    <td>2800.00</td>
+                    <td>1.4629</td>
+                    <td><span class="yes-text">yes</span></td>
+                </tr><tr class="highlight-row">
+                    <td>[O II]</td>
+                    <td>3727.00</td>
+                    <td>1.9472</td>
+                    <td><span class="yes-text">yes</span></td>
+                </tr><tr class="">
+                    <td>He I</td>
+                    <td>10830.00</td>
+                    <td>5.6582</td>
+                    <td><span class="no-text">no</span></td>
+                </tr><tr class="highlight-row">
+                    <td>Hδ</td>
+                    <td>4102.89</td>
+                    <td>2.1436</td>
+                    <td><span class="yes-text">yes</span></td>
+                </tr><tr class="highlight-row">
+                    <td>Hγ</td>
+                    <td>4341.68</td>
+                    <td>2.2684</td>
+                    <td><span class="yes-text">yes</span></td>
+                </tr><tr class="highlight-row">
+                    <td>Hβ</td>
+                    <td>4862.68</td>
+                    <td>2.5406</td>
+                    <td><span class="yes-text">yes</span></td>
+                </tr><tr class="highlight-row">
+                    <td>[O III]</td>
+                    <td>5008.24</td>
+                    <td>2.6166</td>
+                    <td><span class="yes-text">yes</span></td>
+                </tr><tr class="highlight-row">
+                    <td>[O I]</td>
+                    <td>6300.00</td>
+                    <td>3.2915</td>
+                    <td><span class="yes-text">yes</span></td>
+                </tr><tr class="highlight-row">
+                    <td>Hα</td>
+                    <td>6564.61</td>
+                    <td>3.4297</td>
+                    <td><span class="yes-text">yes</span></td>
+                </tr><tr class="highlight-row">
+                    <td>[S II]</td>
+                    <td>6718.29</td>
+                    <td>3.5100</td>
+                    <td><span class="yes-text">yes</span></td>
+                </tr><tr class="highlight-row">
+                    <td>O I</td>
+                    <td>8446.00</td>
+                    <td>4.4127</td>
+                    <td><span class="yes-text">yes</span></td>
+                </tr><tr class="highlight-row">
+                    <td>[S III]</td>
+                    <td>9530.60</td>
+                    <td>4.9794</td>
+                    <td><span class="yes-text">yes</span></td>
+                </tr><tr class="">
+                    <td>[Fe II]</td>
+                    <td>16440.00</td>
+                    <td>8.5892</td>
+                    <td><span class="no-text">no</span></td>
+                </tr><tr class="">
+                    <td>Paα</td>
+                    <td>18756.10</td>
+                    <td>9.7993</td>
+                    <td><span class="no-text">no</span></td>
+                </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+    </div>
+
+    <script>
+        function selectSource(srcid) {
+            if (srcid === 'RUBIES_4233_28812') return;
+            window.location.href = `${srcid}.html`;
+        }
+
+        
+        // 渲染光谱图
+        const spectrumData = {"data": [{"x": [0.54, 0.5429924907410937, 0.5460340296489751, 0.549125977329285, 0.5522694495525959, 0.5554660585535945, 0.5587169324053721, 0.5620237452009996, 0.5653878707062455, 0.5688107917896098, 0.5722942889862827, 0.5758398127417115, 0.5794491964694816, 0.5831242385199349, 0.5868666095731849, 0.5906783576585449, 0.5945614653954421, 0.598517842714797, 0.602549613597003, 0.6066591193397508, 0.6108485287040555, 0.6151201087614295, 0.6194763214939456, 0.6239198223899493, 0.6284531652342071, 0.6330790120793015, 0.6378001360344843, 0.6426194240043188, 0.6475399640573128, 0.652564919097741, 0.6576975053049093, 0.6629410599167432, 0.6682990451376263, 0.6737750504937825, 0.6793727932575451, 0.685096120755328, 0.6909490129749664, 0.6969355817116162, 0.7030600724718354, 0.7093268674002664, 0.7157405369104755, 0.7223058253367636, 0.7290275365986447, 0.7359106076373616, 0.742960106929894, 0.7501813610405474, 0.7575797823077404, 0.7651608308758224, 0.772930205451272, 0.7808936977136617, 0.7890571415640131, 0.7974266081117796, 0.8060081096745279, 0.8148078549630995, 0.8238320198831227, 0.8330868467656268, 0.8425785936706854, 0.8523134779015903, 0.862297683323395, 0.8725372930257402, 0.8830382596447854, 0.8938063784407981, 0.9048472271999145, 0.9161661214522663, 0.9277680571501761, 0.9396576605490611, 0.9518391416350266, 0.964316115987264, 0.9770916794555257, 0.990168400477219, 1.003548108169641, 1.0172317518847795, 1.0312197813627446, 1.0455113649883845, 1.0601051747209307, 1.0749987235363379, 1.0901885122454726, 1.1056702342981737, 1.1214385395230086, 1.1374870280718172, 1.1538082044705062, 1.170393786289657, 1.1872345819840113, 1.2043205589115493, 1.221640829178208, 1.239183780149213, 1.2569372867938209, 1.274888741326792, 1.2930251496013516, 1.3113329735006423, 1.3297985679456485, 1.3484083591877056, 1.367148457443781, 1.3860052248104098, 1.4049652581052927, 1.4240151187305408, 1.4431420836540367, 1.4623333206691422, 1.4815769263008325, 1.500861020398336, 1.5201746452647844, 1.539506984300002, 1.5588481602646425, 1.5781884764731928, 1.5975191694094044, 1.616831726466621, 1.6361184759747196, 1.655372053948066, 1.6745858517228351, 1.693753585519845, 1.712869656711387, 1.731928767582919, 1.7509262588139904, 1.7698577228114212, 1.788719323007841, 1.8075075013368729, 1.8262191261336762, 1.844851390991783, 1.863401776155185, 1.8818681161884983, 1.900248463949467, 1.9185411581257417, 1.936744785420171, 1.9548581140521788, 1.9728801346385687, 1.9908100301262066, 2.008647144465826, 2.026390966196691, 2.0440411405132166, 2.0615974420196683, 2.0790597608253925, 2.096428090996065, 2.113702526001586, 2.1308832498677663, 2.147970527974919, 2.1649646957389153, 2.181866153986507, 2.198675362680219, 2.2153928316565223, 2.2320191203699293, 2.248554827789051, 2.265000590650547, 2.281357077655829, 2.297624987485916, 2.3138050408060105, 2.3298979825645723, 2.345904574829114, 2.3618255943088244, 2.3776618336247735, 2.393414090989868, 2.4090831771476373, 2.424669907587476, 2.440175106189601, 2.4555996023595235, 2.4709442221113496, 2.486209790708977, 2.5013971341241676, 2.516507081173047, 2.531540458075221, 2.5464980833867195, 2.5613807684551246, 2.5761893322806313, 2.5909245817972733, 2.605587311120172, 2.620178317445634, 2.6346983917414297, 2.6491483068702983, 2.6635288417743457, 2.6778407601384133, 2.692084811500891, 2.706261757186175, 2.720372326731739, 2.7344172585628828, 2.7483972733774023, 2.7623130835698935, 2.776165397875365, 2.7899549075083767, 2.8036823072687267, 2.8173482691477876, 2.8309534680467427, 2.8444985596594656, 2.857984199619716, 2.8714110300030704, 2.884779682502595, 2.8980907874150468, 2.9113449509381595, 2.9245427952322856, 2.937684909613585, 2.9507718889903054, 2.9638043174638766, 2.976782759608181, 2.9897077936784013, 3.0025799722725592, 3.0153998390590435, 3.028167947226228, 3.0408848243463096, 3.0535509907971004, 3.0661669769030473, 3.0787332897164847, 3.0912504272886223, 3.103718890341712, 3.1161391702060417, 3.128511745172129, 3.1408370872315605, 3.1531156690672746, 3.165347954186391, 3.177534394047262, 3.189675433373, 3.2017715149571333, 3.2138230795966867, 3.225830554307142, 3.237794359942687, 3.2497149123705595, 3.2615926200510827, 3.2734278922648965, 3.285221130314619, 3.2969727257010892, 3.308683065055004, 3.3203525302331593, 3.3319814985307428, 3.343570339480065, 3.355119420328403, 3.3666291075688703, 3.378099756121469, 3.3895317169364367, 3.4009253368080063, 3.4122809566788352, 3.4235989130495468, 3.4348795392516105, 3.446123162516521, 3.4573301064673916, 3.46850069022224, 3.479635228193482, 3.4907340308309993, 3.501797405442209, 3.5128256533331528, 3.523819073795043, 3.5347779604955343, 3.5457026039323694, 3.5565932911820464, 3.567450304993288, 3.5782739242322164, 3.5890644244941137, 3.599822078021419, 3.610547152494151, 3.6212399131467095, 3.631900621730509, 3.6425295352547473, 3.6531269089260694, 3.6636929942026053, 3.674228038997792, 3.684732288171343, 3.6952059835648816, 3.705649366427339, 3.716062674596946, 3.726446140419409, 3.736799994178946, 3.747124463221861, 3.7574197711273754, 3.7676861392713135, 3.777923786209665, 3.788132929471134, 3.7983137857036993, 3.8084665662880384, 3.8185914795781386, 3.828688730388488, 3.8387585225086664, 3.848801055335069, 3.85881653209554, 3.868805150519052, 3.8787671034699764, 3.888702582212151, 3.898611775663122, 3.9084948724470125, 3.918352061254994, 3.9281835243129453, 3.9379894416595107, 3.9477699902237307, 3.9575253509131456, 3.9672557008677245, 3.9769612104264573, 3.9866420503525175, 3.996298389623756, 4.00593039967436, 4.015538244196805, 4.025122086156624, 4.034682085986054, 4.044218408811038, 4.053731211287843, 4.063220647752822, 4.072686875224748, 4.082130048237729, 4.091550317833601, 4.100947829957048, 4.110322740313617, 4.119675193077571, 4.129005330834217, 4.138313300679265, 4.147599245421581, 4.156863303729052, 4.166105614646897, 4.175326319662564, 4.184525552068634, 4.19370344628231, 4.202860140240641, 4.211995762722028, 4.221110444542153, 4.230204318503031, 4.239277509935004, 4.248330145300891, 4.257362354649797, 4.266374257607232, 4.275365980692017, 4.284337645717218, 4.293289370488495, 4.302221279188396, 4.311133487811904, 4.320026111747339, 4.328899271588458, 4.337753078359449, 4.346587648673537, 4.35540309459867, 4.364199525001348, 4.372977055017115, 4.381735791600029, 4.390475843027332, 4.399197319353774, 4.407900322066317, 4.416584962990801, 4.425251340735319, 4.433899563275058, 4.4425297308716605, 4.451141945163838, 4.459736308042182, 4.468312915943082, 4.476871872701389, 4.485413271026644, 4.493937212683089, 4.502443789886684, 4.510933100659902, 4.519405237467447, 4.52786029467967, 4.536298365160475, 4.544719538939814, 4.55312391006787, 4.561511565257239, 4.569882597014959, 4.578237090621037, 4.586575137773379, 4.594896821270585, 4.603202232356308, 4.6114914521590595, 4.619764569083928, 4.628021663674422, 4.63626282232523, 4.644488124685881, 4.652697655837802, 4.660891493493319, 4.6690697220394535, 4.677232417089271, 4.685379662247312, 4.693511531185304, 4.701628106474076, 4.70972946148792, 4.717815675815123, 4.725886822844541, 4.733942978984485, 4.74198421829526, 4.750010615477617, 4.758022243745119, 4.766019174828444, 4.774001482716932, 4.781969236129521, 4.78992250948787, 4.7978613693375545, 4.805785890737308, 4.81369613840742, 4.821592183598404, 4.829474093743174, 4.837341936031313, 4.845195779304855, 4.853035686417056, 4.8608617282219475, 4.868673966032895, 4.876472468152661, 4.884257296977743, 4.892028516763412, 4.89978619224788, 4.9075303841505935, 4.9152611578191, 4.922978573222814, 4.930682691896487, 4.9383735771587896, 4.9460512859637955, 4.953715881906531, 4.96136742290217, 4.969005967664348, 4.976631577370473, 4.984244307866147, 4.991844219201139, 4.999431367249786, 5.0070058088666975, 5.014567602848236, 5.0221168029899275, 5.029653465423679, 5.037177647398896, 5.044689399769174, 5.052188782093807, 5.059675845405242, 5.067150643394227, 5.074613231978657, 5.082063662094304, 5.089501985372587, 5.096928256708979, 5.104342525838716, 5.111744844417315, 5.119135265398115, 5.126513836456353, 5.133880610203714, 5.141235636568959, 5.148578963916477, 5.155910642527758, 5.163230721894006, 5.170539248698856, 5.17783627254993, 5.185121842027414, 5.192396002673883, 5.1996588035207605, 5.206910291398266, 5.214150511766128, 5.221379510935725, 5.2285973365346425, 5.2358040329334, 5.242999644219232, 5.25018421868726, 5.257357799046881, 5.264520428811609, 5.271672154186846, 5.278813018601589, 5.285943063945035, 5.293062334172657, 5.300170873845326, 5.307268723521944, 5.314355925776447, 5.3214325242020815, 5.32849855981476, 5.335554072874162, 5.342599106218271, 5.349633701299593, 5.356657897184547, 5.363671733871856, 5.370675254053605, 5.377668496638095, 5.384651499878848, 5.391624304015411, 5.398586949636018, 5.40553947413765, 5.412481915652523, 5.4194143138494955, 5.426336707025783, 5.433249132228494, 5.440151625842054, 5.447044228096482, 5.453926975459426, 5.460799904160957, 5.467663049874069, 5.474516450941539, 5.481360143946906, 5.488194163283702, 5.495018544530257, 5.501833324931415, 5.508638539755341, 5.515434223533388], "y": [NaN, NaN, NaN, 0.7866332399474114, 0.08341989803851962, 0.05281414499498432, 0.050343297751100864, -0.026457276583285536, -0.03757585422190689, -0.10517266455404022, -0.0002176703686386193, -0.03126819216920024, 0.005299680301323648, 0.04870480486317925, -0.0011101384995400386, -0.0032146376217190285, 0.030670990818259147, -0.01252223952312803, -0.03850872820979604, 0.013130744923247159, -0.035027458062951114, -0.007907388302854519, 0.005603895611105256, 0.021329495511316434, 0.0012994170688777227, -0.012393878595624307, 0.0033973874566543094, -0.010427249261591366, -0.001077135866042716, 0.02053375731333408, 0.018786142609648268, 0.00510536895640943, -0.0030038747407631784, -0.010751596686066841, -0.03343740715405781, 0.005845852974492102, 0.0006481423646245251, 0.00671012137112682, -0.0081546747608188, -0.012727436611372581, 0.004151661576182929, 0.03359775295819363, 0.014181996637427335, 0.02020234757942595, -0.00040157134466326384, 0.017999937247668196, 0.0038239506742317815, -0.006170221231763382, -0.015245405583255399, 0.004459251425504053, 0.016930380418718062, -0.006945473830585618, 0.0209879587701108, 0.0024316086653396675, -0.0008639651420395587, 0.023505736058275033, -0.002684890312166969, -0.014397311912570277, 0.003374521603417989, 0.016982036945675953, 0.00414284746291939, -0.01595872362261734, 0.012884760580227299, 0.009340166145241972, 0.008882234720409428, 0.002695918576212123, 0.01586914436376144, 0.002853564271278208, 0.011029258340394909, 0.04118615669208311, -0.0012091282095430134, 0.008680708714274538, 0.011085750603596097, -0.019016879078992945, 0.0033222088102009537, 0.008860755449587258, 0.0014864028160693358, 0.022309594312508972, 0.008436215928123566, 0.017400018306019168, -0.00012228748705701105, 0.01123627032964784, 0.021466931522428085, 0.0022437255411911564, 0.005763049971673988, 0.011027220417182975, 0.01526730464564823, 0.004368555097464345, 0.012153001719773598, 0.005146111629301587, 0.002495938007801572, 0.01138340705163112, 0.01623341698427256, 0.025263163269165098, 0.020486305420855153, 0.004894603729514376, 0.015007242585275912, 0.014508372755680444, 0.018595980468643872, 0.03980411097075765, 0.017969956887226027, 0.01880660415010941, 0.001594841747441744, 0.007920776949496078, 0.025564290635671387, 0.002196087058376795, 0.02040779754992801, 0.012958572441494532, 0.018742816004376592, 0.015423434035742234, 0.009736820163868783, 0.009342548967808376, 0.031757609344285405, 0.022450257441244792, 0.05070448444959885, 0.012556871799855266, 0.009721168892312863, 0.0062954385080451316, 0.0375581324415552, 0.011381829441897934, 0.014619176249061172, 0.008387101819564481, 0.022238712092569342, 0.02430642735286992, 0.04220254826796298, 0.011400378721372713, 0.007171883006766657, 0.05466838933172318, 0.048407485592837286, 0.04007669804156804, 0.05604437382344775, 0.022435516611034236, 0.03679133955315977, 0.020773141192210288, 0.05873026198443815, 0.062265118881943915, 0.024410421861505997, 0.05347484740331709, 0.057651525020716736, 0.07560302603077045, 0.06946074045211734, 0.09910994005395798, 0.10722833486977766, 0.08659663690295584, 0.06556506129255549, 0.07995280971429007, 0.08061023483655562, 0.05824079155364213, 0.054981990126857755, 0.08520056816570956, 0.1037451457796833, 0.10364155906143137, 0.06480622307395432, 0.10197467517083314, 0.11424773510448617, 0.10777795672027127, 0.08701633138781636, 0.0784498032533772, 0.13183949460940203, 0.1623794668801457, 0.11439195664388901, 0.10415951193628675, 0.18577408539634332, 0.24312432390057515, 0.2820415278109849, 0.09454742797282996, 0.13477533401736216, 0.09157775712819387, 0.1345957282848689, 0.1373730884104597, 0.11779214777811803, 0.0958706314580657, 0.09952622588845597, 0.14477359102760873, 0.09903400283116773, 0.12230095946033079, 0.09569376472052765, 0.1252661892205851, 0.15873217280678187, 0.1777334615694816, 0.15018223878207956, 0.17919397949048393, 0.17205133388719546, 0.1837623727362553, 0.11242664213086964, 0.13440160922818428, 0.15717403000900657, 0.1586920310431002, 0.11355796632397175, 0.15309439992976717, 0.165351184814912, 0.18563277473398135, 0.18439087422646458, 0.19606381181296056, 0.21901893426799166, 0.16948352813903927, 0.15881225059089238, 0.2015353200115652, 0.1380751559398786, 0.13199314068486406, 0.14754675009579157, 0.14221157290831601, 0.20445858447342846, 0.1788674405038209, 0.1938266584505805, 0.1774600355265143, 0.14750692655532904, 0.15664017652499482, 0.16041602402992938, 0.19849863316204772, 0.19173475353075806, 0.194594185942035, 0.17422931268307953, 0.24934130486202485, 0.22430839025907715, 0.18557777064593375, 0.2440470676803269, 0.156223949710006, 0.21420337362979652, 0.14374957053198187, 0.1665358031264593, 0.2283641333742678, 0.19641552343743957, 0.24797021153456633, 0.29532476508843525, 0.3866261877070747, 0.9578111647274709, 2.2429498319130197, 1.7068442104410588, 1.1728890955576874, 0.4847559852702361, 0.3208552474284827, 0.24425279555205273, 0.23930078101356056, 0.20145359457693215, 0.2670808676917913, 0.1814177626880806, 0.23743580628497984, 0.27255291283434707, 0.30985236066197014, 0.2694855503951007, 0.2513647995719273, 0.19038465743017177, 0.23956966118441742, 0.18403940060411172, 0.2142024734742595, 0.19124052456779564, 0.2653390083874245, 0.16188370942129635, 0.24919863549326773, 0.2954718261494806, 0.28928347234334106, 0.39093752504037255, 0.29508192109384396, 0.27040123206712585, 0.28108295559197316, 0.26824169915584567, 0.23687595715777557, 0.2457943552757501, 0.1913683806566311, 0.2730462227858862, 0.2671974271048206, 0.23839533886703873, 0.22959627343127884, 0.3048617282316538, 0.3000680027605602, 0.203185668529323, 0.28343699608885475, 0.27829695891342393, 0.3034639794119928, 0.27454308847729375, 0.27898282788232326, 0.25476776041746907, 0.33306061372859963, 0.24889194835644268, 0.2600259634130022, 0.2538605188087586, 0.2382600083940047, 0.30067181706006796, 0.27881711880123944, 0.3121702629506631, 0.2618967064986669, 0.2678767362831895, 0.263053617901929, 0.21752350819515423, 0.29913532722426406, 0.33359440580620237, 0.2644348337532979, 0.30915139384482826, 0.21139050786013922, 0.28436183918703245, 0.2697334126663545, 0.2257738123267141, 0.2488709947822114, 0.29942811130014363, 0.32668974590937744, 0.309425024601251, 0.25634604653411625, 0.2757911295638333, 0.2635550257392988, 0.22734467317023085, 0.2836634694027559, 0.3293951560149129, 0.27173185698841085, 0.2855807099047033, 0.30832307596933667, 0.25935084897184685, 0.31502906917074974, 0.24232238880018536, 0.32406306116912237, 0.3098378555116202, 0.36003475217588327, 0.29729900319074504, 0.22248675917841815, 0.24528728490961843, 0.30908654237573413, 0.27646640505935954, 0.29450371582853924, 0.3405599822425405, 0.3093188800825211, 0.3637071273505199, 0.20386540473142822, 0.3535807413600793, 0.31531953067656804, 0.20548532687721624, 0.3248956572397212, 0.3076228865503738, 0.41978422026962575, 0.36270920818187224, 0.29464992980582133, 0.32197368781837354, 0.34342320355576994, 0.29787691523744564, 0.29271410934046893, 0.26353362338079056, 0.3272148454739308, 0.2557808965267917, 0.3010868847706214, 0.2818466181410285, 0.17142478462127123, 0.37610867046316837, 0.3135715072575189, 0.24798290828865355, 0.3543478129300182, 0.326195013054541, 0.2670651552827267, 0.35546116735652994, 0.3262790902782026, 0.2658989196550145, 0.2466196872125943, 0.3052892368679662, 0.210353155014399, 0.27221076441744474, 0.2303244761245667, 0.2822731733237755, 0.3489584024191558, 0.2762141506733944, 0.2597796567418258, 0.256096359592882, 0.23227422474235512, 0.38365528903283913, 0.31782756561401526, 0.32033517529908545, 0.36186840055772834, 0.362487465518542, 0.23446993004277666, 0.2547647905549817, 0.31918161507515125, 0.2898278056935492, 0.1737793895392975, 0.34981270387705676, 0.3375924049768945, 0.40065865168744436, 0.30808623125612944, 0.3569846298108874, 0.4464545399685869, 0.34689863228894846, 0.3979488584766343, 0.38548594907788925, 0.27724943748461034, 0.2726000507728051, 0.24897011950132733, 0.33391466728688474, 0.30721777272228257, 0.29977637474249574, 0.3199641823334522, 0.3742427956272976, 0.3413392082621799, 0.2578274149490342, 0.33657121972683257, 0.31239599898624526, 0.3532837207700488, 0.23482148951987727, 0.2644158657326265, 0.23463169751347082, 0.27706584677802043, 0.32139621373301064, 0.33428355721814035, 0.5347434351058916, 0.4645669715342659, 0.3457756704593587, 0.34122078322576854, 0.3345698869348647, 0.199595199848549, 0.2733880311100527, 0.18752900735317787, 0.30162348651627446, 0.3270715949125541, 0.22123865351507227, 0.12518051342358028, 0.2649869583420543, 0.37897096856640766, 0.26813391700001804, 0.29640762194720127, 0.311989331613576, 0.3134114543386732, 0.18962685500271625, 0.20885076283763163, 0.21809484562688158, 0.3032123008760797, 0.3048072906987826, 0.3011182983091841, 0.34566278699420044, 0.10960051476862477, 0.4073358930860875, 0.22727503168050794, 0.37837592998136904, 0.24964416245380874, 0.4380470412459438, 0.08596745440367343, 0.3568591965729635, 0.2530458453532712, 0.32246366648372604, 0.4163779682081435, 0.3520554878628257, 0.45138593773481417, 0.2420367236742959, 0.36146922834616807, 0.28450351895759196, 0.3816318758652004, 0.33221009013520225, 0.31110677695419775, 0.2842295613098714, 0.3106570103568493, 0.2848464393699341, 0.24390556214560227, 0.3571939583868794, 0.3785400211200597, 0.27806799802640764, 0.3169214500536375, 0.25925629996394445, 0.3811872617858027, 0.5044557844960894, 0.2568478521616865, 0.39606976361773943, 0.4937826149467611, 0.4160280137588202, 0.48481750075171787, 0.7834766830613777, -0.2903225142017792, 0.3144496379157744, 0.5061652057106414, 0.5371119915788264, 0.44679182641432236, 0.546807031814963, 0.77160203938893, 0.4676315479896544, 1.1544260187343445, 1.1995336267133725, 1.432537111356308, 3.693605963721527, NaN, NaN], "mode": "lines", "name": "flux", "line": {"color": "#2563EB", "width": 1.5}, "hovertemplate": "%{x:.4f} \u03bcm<br>Flux: %{y:.2e} \u03bcJy<extra></extra>"}], "layout": {"title": "", "plot_bgcolor": "white", "paper_bgcolor": "white", "font": {"family": "Arial, sans-serif", "size": 12}, "margin": {"l": 60, "r": 40, "t": 20, "b": 50}, "xaxis": {"title": {"text": "Wavelength (\u03bcm)", "standoff": 10}, "showgrid": true, "gridcolor": "#E2E8F0", "linecolor": "#64748B", "ticks": "outside", "tickcolor": "#64748B"}, "yaxis": {"title": {"text": "Flux (\u03bcJy)", "standoff": 10}, "showgrid": true, "gridcolor": "#E2E8F0", "linecolor": "#64748B", "ticks": "outside", "tickcolor": "#64748B"}, "hovermode": "x unified", "shapes": [], "legend": {"orientation": "h", "y": 1.02, "x": 1, "xanchor": "right"}}, "emission_lines": []};
+        if (spectrumData && spectrumData.data && spectrumData.layout) {
+            Plotly.newPlot('spectrum-plot', spectrumData.data, spectrumData.layout, {
+                responsive: true,
+                displayModeBar: false,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d']
+            });
+        }
+        
+    </script>
+</body>
+</html>

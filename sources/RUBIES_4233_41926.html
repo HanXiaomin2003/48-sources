@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RUBIES_4233_41926 - MSA-CEERS 查找器</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: Inter, Arial, sans-serif;
+            background: #F3F6FA;
+            color: #172033;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* 左侧栏 */
+        .sidebar {
+            width: 300px;
+            background: #0F1B2D;
+            position: fixed;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 100;
+        }
+
+        .sidebar-header {
+            padding: 24px;
+            border-bottom: 1px solid #202D40;
+        }
+
+        .sidebar-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #FFFFFF;
+            margin-bottom: 8px;
+        }
+
+        .sidebar-subtitle {
+            font-size: 13px;
+            color: #64748B;
+            line-height: 1.4;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            color: #65A8FF;
+            text-decoration: none;
+            font-size: 13px;
+            margin-bottom: 16px;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: #FFFFFF;
+        }
+
+        .source-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 16px 16px;
+        }
+
+        .source-item {
+            background: #202D40;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .source-item:hover {
+            background: #2A3D52;
+        }
+
+        .source-item.active {
+            background: #214B8F;
+            border-color: #65A8FF;
+        }
+
+        .source-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #FFFFFF;
+            margin-bottom: 4px;
+        }
+
+        .source-meta {
+            font-size: 12px;
+            color: #64748B;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* 右侧主工作区 */
+        .main-content {
+            margin-left: 300px;
+            flex: 1;
+            padding: 32px;
+            max-width: calc(100vw - 300px);
+        }
+
+        .card {
+            background: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            border-radius: 10px;
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+
+        /* 对象概览头部 */
+        .object-header {
+            background: linear-gradient(135deg, #214B8F 0%, #1E3A5F 100%);
+            padding: 32px;
+            color: white;
+        }
+
+        .object-title {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .object-subtitle {
+            font-size: 14px;
+            color: rgba(255,255,255,0.7);
+            margin-bottom: 24px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+        }
+
+        .metric {
+            background: rgba(255,255,255,0.1);
+            padding: 12px 16px;
+            border-radius: 6px;
+        }
+
+        .metric-label {
+            font-size: 11px;
+            color: rgba(255,255,255,0.6);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            font-size: 16px;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* 卡片标题 */
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #172033;
+            padding: 20px 24px;
+            border-bottom: 1px solid #E2E8F0;
+        }
+
+        .card-subtitle {
+            font-size: 13px;
+            color: #64748B;
+            margin-top: 4px;
+        }
+
+        /* 图像区 */
+        .image-gallery {
+            padding: 24px;
+            overflow-x: auto;
+        }
+
+        .image-container {
+            display: flex;
+            gap: 16px;
+        }
+
+        .image-item {
+            flex-shrink: 0;
+            width: 200px;
+        }
+
+        .image-item img {
+            width: 100%;
+            height: 200px;
+            object-fit: contain;
+            background: #000;
+            border: 1px solid #E2E8F0;
+            border-radius: 6px;
+        }
+
+        .image-label {
+            font-size: 12px;
+            color: #64748B;
+            text-align: center;
+            margin-top: 8px;
+        }
+
+        /* 光谱区 */
+        .spectrum-container {
+            padding: 24px;
+            height: 450px;
+        }
+
+        /* 发射线表格 */
+        .emission-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .emission-table th {
+            background: #F8FAFC;
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #172033;
+            border-bottom: 1px solid #E2E8F0;
+        }
+
+        .emission-table td {
+            padding: 10px 16px;
+            border-bottom: 1px solid #E2E8F0;
+        }
+
+        .emission-table tr.highlight-row {
+            background: rgba(37, 99, 235, 0.05);
+        }
+
+        .emission-table tr:hover {
+            background: #F8FAFC;
+        }
+
+        .yes-text {
+            color: #2563EB;
+            font-weight: 600;
+        }
+
+        .no-text {
+            color: #94A3B8;
+        }
+
+        .download-btn {
+            display: inline-block;
+            background: #2563EB;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 13px;
+            transition: background 0.2s;
+            margin: 20px 24px;
+        }
+
+        .download-btn:hover {
+            background: #1D4ED8;
+        }
+
+        .no-data {
+            padding: 32px;
+            text-align: center;
+            color: #94A3B8;
+        }
+
+        /* 响应式 */
+        @media (max-width: 1024px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+                padding: 16px;
+            }
+
+            .metrics-grid {
+                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            }
+        }
+    </style>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+</head>
+<body>
+    <!-- 左侧栏 -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <a href="../index.html" class="back-link">← 返回主页</a>
+            <div class="sidebar-title">MSA-CEERS 查找器</div>
+            <div class="sidebar-subtitle">源数据浏览器</div>
+        </div>
+
+        <div class="source-list">
+
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_61496')">
+                        <div class="source-name">RUBIES_4233_61496</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_50052')">
+                        <div class="source-name">RUBIES_4233_50052</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('CEERS-672')">
+                        <div class="source-name">CEERS-672</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES-EGS-50812')">
+                        <div class="source-name">RUBIES-EGS-50812</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_13872')">
+                        <div class="source-name">RUBIES_4233_13872</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_58237')">
+                        <div class="source-name">RUBIES_4233_58237</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-927271')">
+                        <div class="source-name">EGS-927271</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_41683')">
+                        <div class="source-name">RUBIES_4233_41683</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES-EGS-17146')">
+                        <div class="source-name">RUBIES-EGS-17146</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-952625')">
+                        <div class="source-name">EGS-952625</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_37124')">
+                        <div class="source-name">RUBIES_4233_37124</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('VALENTINO_3567_40442')">
+                        <div class="source-name">VALENTINO_3567_40442</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES-EGS-45599')">
+                        <div class="source-name">RUBIES-EGS-45599</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-931291')">
+                        <div class="source-name">EGS-931291</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-17301')">
+                        <div class="source-name">EGS-17301</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_55604')">
+                        <div class="source-name">RUBIES_4233_55604</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_42232')">
+                        <div class="source-name">RUBIES_4233_42232</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES-EGS-920')">
+                        <div class="source-name">RUBIES-EGS-920</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_29489')">
+                        <div class="source-name">RUBIES_4233_29489</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item active" onclick="selectSource('RUBIES_4233_41926')">
+                        <div class="source-name">RUBIES_4233_41926</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_925921')">
+                        <div class="source-name">RUBIES_4233_925921</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_24210')">
+                        <div class="source-name">RUBIES_4233_24210</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-46724')">
+                        <div class="source-name">EGS-46724</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS_4106_47962')">
+                        <div class="source-name">EGS_4106_47962</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES-EGS-46985')">
+                        <div class="source-name">RUBIES-EGS-46985</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_45502')">
+                        <div class="source-name">RUBIES_4233_45502</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES-EGS-19174')">
+                        <div class="source-name">RUBIES-EGS-19174</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_42046')">
+                        <div class="source-name">RUBIES_4233_42046</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_6411')">
+                        <div class="source-name">RUBIES_4233_6411</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_37032')">
+                        <div class="source-name">RUBIES_4233_37032</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_60935')">
+                        <div class="source-name">RUBIES_4233_60935</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-34978')">
+                        <div class="source-name">EGS-34978</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-966323')">
+                        <div class="source-name">EGS-966323</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_926125')">
+                        <div class="source-name">RUBIES_4233_926125</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS_4106_57146')">
+                        <div class="source-name">EGS_4106_57146</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-53254')">
+                        <div class="source-name">EGS-53254</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('VALENTINO_3567_44021')">
+                        <div class="source-name">VALENTINO_3567_44021</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('VALENTINO_3567_20910')">
+                        <div class="source-name">VALENTINO_3567_20910</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_15825')">
+                        <div class="source-name">RUBIES_4233_15825</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-70473')">
+                        <div class="source-name">EGS-70473</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('CEERS_1345_746')">
+                        <div class="source-name">CEERS_1345_746</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_28812')">
+                        <div class="source-name">RUBIES_4233_28812</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('VALENTINO_3567_53035')">
+                        <div class="source-name">VALENTINO_3567_53035</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('EGS-959367')">
+                        <div class="source-name">EGS-959367</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_42803')">
+                        <div class="source-name">RUBIES_4233_42803</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('RUBIES_4233_25712')">
+                        <div class="source-name">RUBIES_4233_25712</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('CEERS-397')">
+                        <div class="source-name">CEERS-397</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+                    <div class="source-item " onclick="selectSource('GTO_1213_3848')">
+                        <div class="source-name">GTO_1213_3848</div>
+                        <div class="source-meta">z = N/A</div>
+                    </div>
+        </div>
+    </div>
+
+    <!-- 右侧主工作区 -->
+    <div class="main-content">
+        <!-- 对象概览头部 -->
+        <div class="card">
+            <div class="object-header">
+                <div class="object-title">RUBIES_4233_41926</div>
+                <div class="object-subtitle">JWST CEERS巡天匹配源</div>
+                <div class="metrics-grid">
+                    <div class="metric">
+                        <div class="metric-label">源 ID</div>
+                        <div class="metric-value">RUBIES_4233_41926</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">RA</div>
+                        <div class="metric-value">214.929216°</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Dec</div>
+                        <div class="metric-value">52.885041°</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">z_use</div>
+                        <div class="metric-value">3.8650</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">z_best</div>
+                        <div class="metric-value">3.8650</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">z_phot</div>
+                        <div class="metric-value">3.8650</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">波段</div>
+                        <div class="metric-value">7</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">光谱</div>
+                        <div class="metric-value">✗</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图像浏览区 -->
+        <div class="card">
+            <div class="card-title">多波段图像</div>
+            <div class="image-gallery">
+                <div class="image-container">
+
+                <div class="image-item">
+                    <img src="../images/bands/RUBIES_4233_41926_multiband.png" alt="F115W">
+                    <div class="image-label">F115W</div>
+                </div>
+                <div class="image-item">
+                    <img src="../images/bands/RUBIES_4233_41926_multiband.png" alt="F150W">
+                    <div class="image-label">F150W</div>
+                </div>
+                <div class="image-item">
+                    <img src="../images/bands/RUBIES_4233_41926_multiband.png" alt="F200W">
+                    <div class="image-label">F200W</div>
+                </div>
+                <div class="image-item">
+                    <img src="../images/bands/RUBIES_4233_41926_multiband.png" alt="F277W">
+                    <div class="image-label">F277W</div>
+                </div>
+                <div class="image-item">
+                    <img src="../images/bands/RUBIES_4233_41926_multiband.png" alt="F356W">
+                    <div class="image-label">F356W</div>
+                </div>
+                <div class="image-item">
+                    <img src="../images/bands/RUBIES_4233_41926_multiband.png" alt="F410M">
+                    <div class="image-label">F410M</div>
+                </div>
+                <div class="image-item">
+                    <img src="../images/bands/RUBIES_4233_41926_multiband.png" alt="F444W">
+                    <div class="image-label">F444W</div>
+                </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 光谱图表区 -->
+        <div class="card">
+            <div class="card-title">光谱数据</div>
+            <div class="no-data">暂无光谱数据</div>
+            
+        </div>
+
+        <!-- 发射线表格 -->
+        
+    </div>
+
+    <script>
+        function selectSource(srcid) {
+            if (srcid === 'RUBIES_4233_41926') return;
+            window.location.href = `${srcid}.html`;
+        }
+
+        
+    </script>
+</body>
+</html>
