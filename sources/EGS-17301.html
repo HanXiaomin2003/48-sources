@@ -683,36 +683,63 @@
 
             <!-- 1. 固定颜色图例（不可点击） -->
             <div style="padding: 16px 24px; border-bottom: 1px solid #E5E7EB; background: #FAFAFA;">
-                <div style="font-size: 12px; font-weight: 600; color: #6B7280; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">
+                <div style="font-size: 12px; font-weight: 600; color: #6B7280; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">
                     Legend / 图例
                 </div>
-                <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center;">
-                    <div style="display: flex; align-items: center; gap: 4px;">
-                        <div style="width: 24px; height: 3px; background: #2563EB; border-radius: 1px;"></div>
+                <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: center;">
+                    <!-- PRISM/CLEAR -->
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <svg width="32" height="4" style="display: block;">
+                            <rect width="32" height="4" fill="#2563EB" rx="1"/>
+                        </svg>
                         <span style="font-size: 13px; color: #374151;">PRISM/CLEAR</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 4px;">
-                        <div style="width: 24px; height: 3px; background: #059669; border-radius: 1px;"></div>
+                    <!-- G140 -->
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <svg width="32" height="4" style="display: block;">
+                            <rect width="32" height="4" fill="#059669" rx="1"/>
+                        </svg>
                         <span style="font-size: 13px; color: #374151;">G140</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 4px;">
-                        <div style="width: 24px; height: 3px; background: #D97706; border-radius: 1px;"></div>
+                    <!-- G235 -->
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <svg width="32" height="4" style="display: block;">
+                            <rect width="32" height="4" fill="#D97706" rx="1"/>
+                        </svg>
                         <span style="font-size: 13px; color: #374151;">G235</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 4px;">
-                        <div style="width: 24px; height: 3px; background: #DC2626; border-radius: 1px;"></div>
+                    <!-- G395 -->
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <svg width="32" height="4" style="display: block;">
+                            <rect width="32" height="4" fill="#DC2626" rx="1"/>
+                        </svg>
                         <span style="font-size: 13px; color: #374151;">G395</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 4px;">
-                        <div style="width: 24px; height: 3px; background: #94A3B8; border-radius: 1px;"></div>
+                    <!-- Error -->
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <svg width="32" height="4" style="display: block;">
+                            <rect width="32" height="4" fill="#94A3B8" rx="1"/>
+                        </svg>
                         <span style="font-size: 13px; color: #374151;">Error</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 4px;">
-                        <div style="width: 24px; height: 3px; border-top: 2px dashed #60A5FA; border-bottom: none; border-left: none; border-right: none;"></div>
+                    <!-- Emission line -->
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <svg width="32" height="8" style="display: block;">
+                            <line x1="0" y1="4" x2="32" y2="4" stroke="#60A5FA" stroke-width="2" stroke-dasharray="4,2"/>
+                        </svg>
                         <span style="font-size: 13px; color: #374151;">Emission line</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 4px;">
-                        <div style="width: 24px; height: 3px; background: linear-gradient(90deg, rgba(37,99,235,0.3), rgba(37,99,235,0.6)); border-radius: 1px;"></div>
+                    <!-- Throughput -->
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <svg width="32" height="4" style="display: block;">
+                            <defs>
+                                <linearGradient id="tpGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" style="stop-color:rgb(37,99,235);stop-opacity:0.3" />
+                                    <stop offset="100%" style="stop-color:rgb(37,99,235);stop-opacity:0.6" />
+                                </linearGradient>
+                            </defs>
+                            <rect width="32" height="4" fill="url(#tpGrad)" rx="1"/>
+                        </svg>
                         <span style="font-size: 13px; color: #374151;">Throughput</span>
                     </div>
                 </div>
@@ -721,7 +748,7 @@
             <!-- 2. 实际光谱配置按钮 -->
             <div style="padding: 16px 24px 8px 24px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <div style="font-size: 14px; font-weight: 600; color: #374151;">选择要显示的实际光谱：</div>
+                    <div style="font-size: 14px; font-weight: 600; color: #374151;">请选择需要展示的光谱：</div>
                     <!-- 3. Throughput 控制按钮（右侧） -->
                     <div style="display: flex; gap: 8px;">
                         <button onclick="toggleAllThroughput()" id="throughput-toggle-btn" class="throughput-toggle-button">
