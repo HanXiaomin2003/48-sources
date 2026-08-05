@@ -437,6 +437,31 @@
                 grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
             }
         }
+
+        /* 配置按钮样式 */
+        .config-button {
+            padding: 8px 16px;
+            background: white;
+            border: 1px solid #E5E7EB;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            color: #374151;
+            transition: all 0.2s;
+            font-family: 'Courier New', monospace;
+        }
+
+        .config-button:hover {
+            background: #F9FAFB;
+            border-color: #2563EB;
+            color: #2563EB;
+        }
+
+        .config-button:active {
+            background: #EFF6FF;
+            border-color: #1D4ED8;
+        }
     </style>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 </head>
@@ -731,7 +756,23 @@
         <!-- 光谱图表区 -->
         <div class="card">
             <div class="card-title">光谱数据</div>
+            
+            <div style="padding: 16px 24px 0;">
+                <div style="margin-bottom: 12px; font-size: 13px; color: #6B7280;">点击配置名称查看仪器透过率曲线：</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    <button onclick="showThroughputPanel('PRISM/CLEAR')" class="config-button" data-config="PRISM/CLEAR">PRISM/CLEAR</button>
+                    <button onclick="showThroughputPanel('G140M/F070LP')" class="config-button" data-config="G140M/F070LP">G140M/F070LP</button>
+                    <button onclick="showThroughputPanel('G140M/F100LP')" class="config-button" data-config="G140M/F100LP">G140M/F100LP</button>
+                    <button onclick="showThroughputPanel('G235M/F170LP')" class="config-button" data-config="G235M/F170LP">G235M/F170LP</button>
+                    <button onclick="showThroughputPanel('G395M/F290LP')" class="config-button" data-config="G395M/F290LP">G395M/F290LP</button>
+                    <button onclick="showThroughputPanel('G140H/F070LP')" class="config-button" data-config="G140H/F070LP">G140H/F070LP</button>
+                    <button onclick="showThroughputPanel('G140H/F100LP')" class="config-button" data-config="G140H/F100LP">G140H/F100LP</button>
+                    <button onclick="showThroughputPanel('G235H/F170LP')" class="config-button" data-config="G235H/F170LP">G235H/F170LP</button>
+                    <button onclick="showThroughputPanel('G395H/F290LP')" class="config-button" data-config="G395H/F290LP">G395H/F290LP</button>
+                </div>
+            </div>
             <div class="spectrum-container" id="spectrum-plot"></div>
+            
         </div>
 
         <!-- 发射线表格 -->
@@ -1040,7 +1081,7 @@
                     tickfont: { size: 11, color: '#6B7280' },
                     gridcolor: '#E5E7EB',
                     showgrid: true,
-                    range: [0, 0.8]
+                    range: [0, 1]
                 },
                 plot_bgcolor: 'white',
                 paper_bgcolor: 'white',
