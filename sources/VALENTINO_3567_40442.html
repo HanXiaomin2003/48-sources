@@ -955,6 +955,14 @@
         let throughputVisible = false;
 
         // 切换实际光谱显示（包括 spectrum 和 error）
+        // 统一配置名称格式
+        function normalizeConfigKey(value) {
+            return String(value || "")
+                .trim()
+                .toLowerCase()
+                .replace(/[\/\s-]+/g, "_");
+        }
+
         function toggleSpectrum(configKey) {
             const plotDiv = document.getElementById('spectrum-plot');
             const button = document.querySelector(`.config-button[data-config="${configKey}"]`);
@@ -968,7 +976,7 @@
             const throughputTraces = [];
 
             spectrumData.data.forEach((trace, index) => {
-                if (trace.meta && trace.meta.configuration === configKey) {
+                if (trace.meta && normalizeConfigKey(trace.meta.configuration) === normalizeConfigKey(configKey)) {
                     if (trace.meta.kind === 'spectrum' || (!trace.meta.kind && trace.name && !trace.name.includes('throughput'))) {
                         spectrumTraces.push(index);
                     } else if (trace.meta.kind === 'error' || trace.legendgroup && trace.legendgroup.includes('_err')) {
@@ -1027,8 +1035,10 @@
 
             // 查找所有当前选中配置的 throughput traces
             const throughputIndices = [];
+            const normalizedSelected = new Set(Array.from(selectedSpectra).map(c => normalizeConfigKey(c)));
+            
             spectrumData.data.forEach((trace, index) => {
-                if (trace.meta && trace.meta.kind === 'throughput' && selectedSpectra.has(trace.meta.configuration)) {
+                if (trace.meta && trace.meta.kind === 'throughput' && normalizedSelected.has(normalizeConfigKey(trace.meta.configuration))) {
                     throughputIndices.push(index);
                 }
             });
@@ -1065,22 +1075,38 @@
 
         // 初始化：检查哪些配置有实际数据
         function initializeButtons() {
-            const availableConfigs = new Set();
-
-            spectrumData.data.forEach(trace => {
-                if (trace.meta && trace.meta.configuration) {
-                    availableConfigs.add(trace.meta.configuration);
-                }
-            });
+            // 只使用真实光谱 (kind === "spectrum") 来判断可用性
+            const availableConfigs = new Set(
+                spectrumData.data
+                    .filter(trace =>
+                        trace.meta &&
+                        trace.meta.kind === "spectrum" &&
+                        trace.meta.configuration
+                    )
+                    .map(trace =>
+                        normalizeConfigKey(trace.meta.configuration)
+                    )
+            );
 
             // 禁用没有数据的按钮
             document.querySelectorAll('.config-button').forEach(btn => {
-                const config = btn.dataset.config;
-                if (!availableConfigs.has(config)) {
+                const configKey = normalizeConfigKey(btn.dataset.config);
+                if (!availableConfigs.has(configKey)) {
                     btn.disabled = true;
                     btn.textContent += ' (unavailable)';
                 }
             });
+
+            // 调试信息：打印所有光谱的配置信息
+            console.table(
+                spectrumData.data.map(trace => ({
+                    name: trace.name,
+                    configuration: trace.meta?.configuration,
+                    normalized: normalizeConfigKey(trace.meta?.configuration),
+                    kind: trace.meta?.kind
+                }))
+            );
+            console.log('Available configs:', Array.from(availableConfigs));
         }
 
         // 页面加载完成后初始化
