@@ -179,14 +179,7 @@
                 </div>
             </div>
 
-            <div class="control-section">
-                <div class="control-label">观测模式：</div>
-                <div class="button-group">
-                    <button onclick="setMode('mos')" class="mode-button active" data-mode="mos">MOS</button>
-                    <button onclick="setMode('fs')" class="mode-button" data-mode="fs">FS</button>
-                    <button onclick="setMode('ifu')" class="mode-button" data-mode="ifu">IFU</button>
-                </div>
-            </div>
+
         </div>
 
         <div class="plot-container" id="throughput-plot"></div>
@@ -265,7 +258,7 @@
             }
         }
 
-        // 设置观测模式（预留功能，当前所有数据都是 MOS 模式）
+        // 观测模式功能已移除
         function setMode(mode) {
             // 更新按钮样式
             document.querySelectorAll('.mode-button').forEach(btn => {
