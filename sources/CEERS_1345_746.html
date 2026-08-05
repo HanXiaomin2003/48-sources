@@ -282,6 +282,141 @@
             color: #94A3B8;
         }
 
+        /* 透过率面板样式 */
+        .throughput-panel {
+            position: fixed;
+            top: 0;
+            right: -600px;
+            width: 550px;
+            height: 100vh;
+            background: #FFFFFF;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            transition: right 0.3s ease;
+            overflow-y: auto;
+        }
+
+        .throughput-panel.open {
+            right: 0;
+        }
+
+        .throughput-panel-header {
+            padding: 24px;
+            border-bottom: 1px solid #E2E8F0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            background: #FFFFFF;
+            z-index: 10;
+        }
+
+        .throughput-panel-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1F2937;
+        }
+
+        .throughput-panel-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #6B7280;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+        }
+
+        .throughput-panel-close:hover {
+            background: #F3F4F6;
+        }
+
+        .throughput-panel-content {
+            padding: 24px;
+        }
+
+        .throughput-info {
+            background: #F9FAFB;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+        }
+
+        .throughput-info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .throughput-info-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .throughput-info-label {
+            font-size: 13px;
+            color: #6B7280;
+            font-weight: 500;
+        }
+
+        .throughput-info-value {
+            font-size: 13px;
+            color: #1F2937;
+            font-weight: 600;
+        }
+
+        .throughput-chart {
+            height: 350px;
+            margin-top: 16px;
+        }
+
+        .throughput-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+            display: none;
+        }
+
+        .throughput-overlay.open {
+            display: block;
+        }
+
+        /* 图例中的信息按钮 */
+        .info-button {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            line-height: 18px;
+            text-align: center;
+            background: #E5E7EB;
+            color: #6B7280;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 11px;
+            margin-left: 4px;
+            transition: all 0.2s;
+        }
+
+        .info-button:hover {
+            background: #D1D5DB;
+            color: #374151;
+        }
+
+        .legend-item-with-info {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
         /* 响应式 */
         @media (max-width: 1024px) {
             .sidebar {
@@ -790,7 +925,147 @@
                 modeBarButtonsToRemove: ['lasso2d', 'select2d']
             });
         }
+
+        // 透过率面板控制
+        function showThroughputPanel(configName) {
+            // 透过率数据映射
+            const configMap = {
+                'PRISM/CLEAR': 'prism_clear',
+                'G140M/F070LP': 'g140m_f070lp',
+                'G140M/F100LP': 'g140m_f100lp',
+                'G235M/F170LP': 'g235m_f170lp',
+                'G395M/F290LP': 'g395m_f290lp',
+                'G140H/F070LP': 'g140h_f070lp',
+                'G140H/F100LP': 'g140h_f100lp',
+                'G235H/F170LP': 'g235h_f170lp',
+                'G395H/F290LP': 'g395h_f290lp'
+            };
+
+            const fileName = configMap[configName];
+            if (!fileName) {
+                console.error('Unknown configuration:', configName);
+                return;
+            }
+
+            // 加载透过率数据
+            fetch(`../throughput/${fileName}_throughput.json`)
+                .then(response => response.json())
+                .then(data => {
+                    renderThroughputChart(data);
+                    document.getElementById('throughput-panel').classList.add('open');
+                    document.getElementById('throughput-overlay').classList.add('open');
+                })
+                .catch(error => {
+                    console.error('Error loading throughput data:', error);
+                    alert('无法加载透过率数据: ' + error.message);
+                });
+        }
+
+        function hideThroughputPanel() {
+            document.getElementById('throughput-panel').classList.remove('open');
+            document.getElementById('throughput-overlay').classList.remove('open');
+        }
+
+        function renderThroughputChart(data) {
+            // 更新面板标题
+            document.getElementById('throughput-config-name').textContent = data.configuration;
+
+            // 更新信息
+            document.getElementById('throughput-disperser').textContent = data.disperser;
+            document.getElementById('throughput-filter').textContent = data.filter;
+            document.getElementById('throughput-mode').textContent = data.mode;
+
+            if (data.resolution) {
+                document.getElementById('throughput-resolution').textContent =
+                    `${data.resolution.type} (${data.resolution.typical_R})`;
+            } else {
+                document.getElementById('throughput-resolution').textContent = 'N/A';
+            }
+
+            // 绘制透过率曲线
+            const trace = {
+                x: data.wavelength_um,
+                y: data.system_throughput,
+                type: 'scatter',
+                mode: 'lines',
+                fill: 'tozeroy',
+                line: {
+                    color: '#2563EB',
+                    width: 2
+                },
+                fillcolor: 'rgba(37, 99, 235, 0.1)'
+            };
+
+            const layout = {
+                title: {
+                    text: 'NIRSpec System Throughput',
+                    font: { size: 16, color: '#1F2937' }
+                },
+                xaxis: {
+                    title: 'Wavelength [μm]',
+                    titlefont: { size: 13, color: '#374151' },
+                    tickfont: { size: 11, color: '#6B7280' },
+                    gridcolor: '#E5E7EB',
+                    showgrid: true
+                },
+                yaxis: {
+                    title: 'System Throughput',
+                    titlefont: { size: 13, color: '#374151' },
+                    tickfont: { size: 11, color: '#6B7280' },
+                    gridcolor: '#E5E7EB',
+                    showgrid: true,
+                    range: [0, 0.8]
+                },
+                plot_bgcolor: 'white',
+                paper_bgcolor: 'white',
+                margin: { l: 60, r: 30, t: 50, b: 50 },
+                hovermode: 'closest'
+            };
+
+            Plotly.newPlot('throughput-chart', [trace], layout, {
+                responsive: true,
+                displayModeBar: false
+            });
+        }
+
+        // 点击遮罩层关闭面板
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('throughput-overlay').addEventListener('click', hideThroughputPanel);
+        });
         
     </script>
+
+    <!-- 透过率面板 -->
+    <div id="throughput-overlay" class="throughput-overlay"></div>
+    <div id="throughput-panel" class="throughput-panel">
+        <div class="throughput-panel-header">
+            <div class="throughput-panel-title" id="throughput-config-name">NIRSpec Configuration</div>
+            <button class="throughput-panel-close" onclick="hideThroughputPanel()">×</button>
+        </div>
+        <div class="throughput-panel-content">
+            <div class="throughput-info">
+                <div class="throughput-info-row">
+                    <span class="throughput-info-label">色散元件 (Disperser)</span>
+                    <span class="throughput-info-value" id="throughput-disperser">-</span>
+                </div>
+                <div class="throughput-info-row">
+                    <span class="throughput-info-label">滤光片 (Filter)</span>
+                    <span class="throughput-info-value" id="throughput-filter">-</span>
+                </div>
+                <div class="throughput-info-row">
+                    <span class="throughput-info-label">模式 (Mode)</span>
+                    <span class="throughput-info-value" id="throughput-mode">-</span>
+                </div>
+                <div class="throughput-info-row">
+                    <span class="throughput-info-label">分辨率 (Resolution)</span>
+                    <span class="throughput-info-value" id="throughput-resolution">-</span>
+                </div>
+            </div>
+            <div class="throughput-chart" id="throughput-chart"></div>
+            <div style="margin-top: 16px; padding: 12px; background: #FEF3C7; border-radius: 6px; font-size: 12px; color: #92400E;">
+                <strong>注意：</strong> 此透过率曲线使用简化模型生成。实际应用中应使用 JWST Pandeia Engine 计算的官方透过率数据。
+            </div>
+        </div>
+    </div>
 </body>
 </html>
