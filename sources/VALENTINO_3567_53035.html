@@ -924,6 +924,17 @@
                 displayModeBar: false,
                 modeBarButtonsToRemove: ['lasso2d', 'select2d']
             });
+
+            // 添加图例点击事件来显示透过率面板
+            document.getElementById('spectrum-plot').on('plotly_legendclick', function(data) {
+                const curve = data.curveNumber;
+                const traceName = spectrumData.data[curve].name;
+                if (traceName) {
+                    showThroughputPanel(traceName);
+                    // 阻止默认的图例切换行为（可选，如果想保持切换功能，删除下面这行）
+                    // return false;
+                }
+            });
         }
 
         // 透过率面板控制
