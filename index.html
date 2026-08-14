@@ -105,7 +105,8 @@
 
     let manifest = null;
     let vfs = {}; // 虚拟文件系统
-    let currentPath = '/'; // 当前路径
+    let currentPath = 'index.html'; // 当前路径
+    let loadedScripts = new Set(); // 已加载的脚本
 
     function showMsg(text, type) {
         msg.textContent = text;
@@ -147,42 +148,55 @@
 
     // 路径归一化：处理 ../ 和 ./
     function normalizePath(path, basePath = '/') {
-        const parts = basePath.split('/').filter(p => p && p !== '.');
+        // 获取当前文件所在目录
+        const currentDir = basePath.split('/').slice(0, -1).join('/');
 
-        // 解析相对路径
+        // 解析路径段
         const pathParts = path.split('/').filter(p => p && p !== '.');
+        let result = currentDir ? currentDir.split('/').filter(p => p && p !== '.') : [];
 
         for (const part of pathParts) {
             if (part === '..') {
-                parts.pop();
-            } else {
-                parts.push(part);
+                result.pop();
+            } else if (part !== '.') {
+                result.push(part);
             }
         }
 
-        return parts.join('/');
+        return result.join('/');
     }
 
     // 在 VFS 中查找文件，支持路径归一化
     function resolvePath(path, basePath = '/') {
-        // 如果是绝对路径（相对于网站根目录）
+        // 如果是绝对路径（相对于网站根目录，以 / 开头）
         if (path.startsWith('/')) {
-            return path.substring(1);
+            const clean = path.substring(1);
+            return vfs[clean] ? clean : path;
         }
 
         // 处理相对路径
         const normalized = normalizePath(path, basePath);
 
-        // 如果归一化后的路径存在，直接返回
+        // 尝试归一化路径
         if (vfs[normalized]) {
             return normalized;
         }
 
-        // 尝试加上当前路径
-        const currentDir = basePath.split('/').slice(0, -1).join('/');
-        const fullPath = normalizePath(path, currentDir || '/');
+        // 尝试原始路径
+        if (vfs[path]) {
+            return path;
+        }
 
-        return vfs[fullPath] ? fullPath : path;
+        // 尝试加上当前目录
+        const currentDir = basePath.split('/').slice(0, -1).join('/');
+        const fullPath = currentDir ? `${currentDir}/${path}` : path;
+
+        if (vfs[fullPath]) {
+            return fullPath;
+        }
+
+        console.warn('Path not found in VFS:', path, 'tried:', normalized, fullPath);
+        return path;
     }
 
     async function unlock(password) {
@@ -229,7 +243,7 @@
             console.log('Sample files:', Object.keys(vfs).slice(0, 20));
 
             // 显示首页
-            loadSite();
+            await loadSite();
 
             showMsg('✓ Unlocked successfully!', 'success');
 
@@ -247,7 +261,7 @@
         }
     }
 
-    function loadSite() {
+    async function loadSite() {
         let html = null;
         for (const name of ['index.html', 'index.htm']) {
             if (vfs[name]) {
@@ -280,60 +294,74 @@
             }
         });
 
-        // 处理脚本
-        const scripts = Array.from(doc.querySelectorAll('head script'));
-        const headScripts = scripts.filter(s => !s.async && !s.defer);
-        const asyncScripts = scripts.filter(s => s.async || s.defer);
-
-        // 执行同步脚本
-        headScripts.forEach(el => {
-            if (el.src) {
-                const src = el.getAttribute('src');
-                if (vfs[src]) {
-                    const s = document.createElement('script');
-                    s.textContent = new TextDecoder().decode(vfs[src]);
-                    document.head.appendChild(s);
-                } else {
-                    const s = document.createElement('script');
-                    s.src = src;
-                    s.async = false;
-                    document.head.appendChild(s);
-                }
-            } else {
-                const s = document.createElement('script');
-                s.textContent = el.textContent;
-                document.head.appendChild(s);
+        // 加载外部脚本（如 Plotly）
+        const externalScripts = [];
+        doc.querySelectorAll('head script[src]').forEach(el => {
+            const src = el.getAttribute('src');
+            if (src && !loadedScripts.has(src)) {
+                externalScripts.push(src);
+                loadedScripts.add(src);
             }
         });
+
+        // 等待外部脚本加载完成
+        for (const src of externalScripts) {
+            await loadExternalScript(src);
+        }
 
         // 设置 body 内容
         siteContainer.innerHTML = doc.body.innerHTML;
 
-        // 处理所有链接，拦截页面跳转
-        setupLinkInterception();
+        // 移除所有源项的 onclick 属性，避免触发未定义的函数
+        siteContainer.querySelectorAll('.source-item').forEach(item => {
+            item.removeAttribute('onclick');
+        });
 
-        // 处理所有资源
+        // 设置事件委托处理源点击
+        setupSourceDelegation();
+
+        // 处理所有资源（图片）
         processAllResources();
 
-        // 执行异步脚本
-        asyncScripts.forEach(el => {
-            if (el.src) {
-                const src = el.getAttribute('src');
-                if (vfs[src]) {
-                    const s = document.createElement('script');
-                    s.textContent = new TextDecoder().decode(vfs[src]);
-                    siteContainer.appendChild(s);
-                } else {
-                    const s = document.createElement('script');
-                    s.src = src;
-                    siteContainer.appendChild(s);
-                }
-            } else {
-                const s = document.createElement('script');
-                s.textContent = el.textContent;
-                siteContainer.appendChild(s);
-            }
+        // 设置链接拦截
+        setupLinkInterception();
+
+        console.log('Site loaded successfully');
+    }
+
+    // 加载外部脚本
+    function loadExternalScript(src) {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
         });
+    }
+
+    // 设置源列表点击委托（用于首页）
+    function setupSourceDelegation() {
+        siteContainer.addEventListener('click', function(e) {
+            const sourceItem = e.target.closest('.source-item[data-srcid]');
+            if (!sourceItem) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const srcid = sourceItem.getAttribute('data-srcid');
+            console.log('Source clicked:', srcid);
+
+            // 更新选中状态
+            siteContainer.querySelectorAll('.source-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            sourceItem.classList.add('active');
+
+            // 加载详情页
+            const resolvedPath = resolvePath(`sources/${srcid}.html`, currentPath);
+            loadPage(resolvedPath, `sources/${srcid}.html`);
+        }, true);
     }
 
     // 处理所有资源（图片、CSS、背景图等）
@@ -349,6 +377,9 @@
                     const mimeType = getMimeType(resolvedPath);
                     const blob = new Blob([vfs[resolvedPath]], { type: mimeType });
                     img.src = URL.createObjectURL(blob);
+                } else if (img.hasAttribute('onerror')) {
+                    // 保留 onerror 处理，尝试备用路径
+                    console.log('Primary image not found, will use onerror fallback:', src);
                 }
             }
         });
@@ -360,8 +391,8 @@
 
             if (bgImage && bgImage !== 'none' && bgImage.includes('url(')) {
                 const urlMatch = bgImage.match(/url\(['"]?([^'")]+)['"]?\)/);
-                if (urlMatch && urlMatch[2]) {
-                    const imagePath = urlMatch[2];
+                if (urlMatch && urlMatch[1]) {
+                    const imagePath = urlMatch[1];
                     const resolvedPath = resolvePath(imagePath, currentPath);
 
                     if (vfs[resolvedPath]) {
@@ -389,7 +420,7 @@
             const href = link.getAttribute('href');
             if (!href) return;
 
-            console.log('Link clicked:', href);
+            console.log('Link clicked:', href, 'from:', currentPath);
 
             // 处理外部链接
             if (href.startsWith('http://') || href.startsWith('https://')) {
@@ -408,16 +439,17 @@
             e.stopPropagation();
 
             const resolvedPath = resolvePath(href, currentPath);
-            console.log('Loading page:', href, '->', resolvedPath);
+            console.log('Loading page:', href, '->', resolvedPath, 'from:', currentPath);
 
             loadPage(resolvedPath, href);
         }, true);
     }
 
-    function loadPage(resolvedPath, originalPath) {
+    async function loadPage(resolvedPath, originalPath) {
         if (!vfs[resolvedPath]) {
             console.error('Page not found:', resolvedPath);
             console.log('Available files:', Object.keys(vfs).slice(0, 30));
+            console.log('Current path:', currentPath);
             alert('Page not found: ' + originalPath);
             return;
         }
@@ -433,18 +465,41 @@
         // 更新内容
         siteContainer.innerHTML = doc.body.innerHTML;
 
-        // 重新处理资源
+        // 移除所有源项的 onclick 属性
+        siteContainer.querySelectorAll('.source-item').forEach(item => {
+            item.removeAttribute('onclick');
+        });
+
+        // 重新设置事件委托
+        setupSourceDelegation();
+
+        // 处理所有资源（图片）
         processAllResources();
 
         // 重新设置链接拦截
         setupLinkInterception();
 
-        // 执行页面脚本
-        doc.querySelectorAll('script').forEach(el => {
+        // 等待 Plotly 库（如果页面需要）
+        if (typeof Plotly === 'undefined') {
+            await loadExternalScript('https://cdn.plot.ly/plotly-2.27.0.min.js');
+        }
+
+        // 执行页面脚本（包括生成光谱图）
+        const scripts = doc.querySelectorAll('script');
+        for (const scriptEl of scripts) {
             const newScript = document.createElement('script');
-            newScript.textContent = el.textContent;
-            siteContainer.appendChild(newScript);
-        });
+
+            if (scriptEl.src) {
+                const src = scriptEl.getAttribute('src');
+                if (!loadedScripts.has(src)) {
+                    await loadExternalScript(src);
+                    loadedScripts.add(src);
+                }
+            } else {
+                newScript.textContent = scriptEl.textContent;
+                siteContainer.appendChild(newScript);
+            }
+        }
 
         console.log('Page loaded:', resolvedPath);
     }
