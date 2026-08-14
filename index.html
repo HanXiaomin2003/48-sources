@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Protected Site</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+        }
+        .icon { font-size: 64px; margin-bottom: 24px; }
+        h1 { font-size: 28px; color: #1a1a2e; margin-bottom: 12px; }
+        .subtitle {
+            font-size: 14px; color: #666;
+            margin-bottom: 32px; line-height: 1.6;
+        }
+        .input-group { margin-bottom: 24px; text-align: left; }
+        .input-group label {
+            display: block; font-size: 13px; font-weight: 600;
+            color: #444; margin-bottom: 8px; text-transform: uppercase;
+        }
+        input[type="password"] {
+            width: 100%; padding: 16px;
+            border: 2px solid #e0e0e0; border-radius: 10px;
+            font-size: 16px; transition: border-color 0.3s;
+        }
+        input[type="password"]:focus {
+            outline: none; border-color: #4a90e2;
+        }
+        button {
+            width: 100%; padding: 16px;
+            background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+            color: white; border: none; border-radius: 10px;
+            font-size: 16px; font-weight: 600; cursor: pointer;
+            transition: all 0.2s;
+        }
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(74, 144, 226, 0.3);
+        }
+        button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .message {
+            margin-top: 24px; padding: 14px;
+            border-radius: 8px; font-size: 14px;
+        }
+        .error { background: #fee; color: #c33; }
+        .success { background: #efe; color: #3c3; }
+        .spinner {
+            display: inline-block; width: 14px; height: 14px;
+            border: 2px solid #fff; border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 0.6s linear infinite;
+            margin-right: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #site-container { display: none; }
+        #site-container.loaded { display: block; width: 100%; min-height: 100vh; }
+    </style>
+</head>
+<body>
+    <div class="container" id="lockScreen">
+        <div class="icon">🔒</div>
+        <h1>Protected Site</h1>
+        <p class="subtitle">Client-side encrypted site<br>Password never leaves your browser</p>
+
+        <form id="form">
+            <div class="input-group">
+                <label for="pwd">Password</label>
+                <input type="password" id="pwd" required autofocus>
+            </div>
+            <button type="submit" id="btn"><span id="btnText">Unlock</span></button>
+            <div id="msg" class="message"></div>
+        </form>
+    </div>
+
+    <div id="site-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+    <script>
+    const form = document.getElementById('form');
+    const pwd = document.getElementById('pwd');
+    const btn = document.getElementById('btn');
+    const btnText = document.getElementById('btnText');
+    const msg = document.getElementById('msg');
+    const lockScreen = document.getElementById('lockScreen');
+    const siteContainer = document.getElementById('site-container');
+
+    let manifest = null;
+    let vfs = {}; // 虚拟文件系统
+    let currentPath = '/'; // 当前路径
+
+    function showMsg(text, type) {
+        msg.textContent = text;
+        msg.className = 'message ' + type;
+    }
+
+    function setLoading(loading) {
+        btn.disabled = loading;
+        btnText.innerHTML = loading ? '<span class="spinner"></span>Processing...' : 'Unlock';
+    }
+
+    function b64ToBytes(b64) {
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return bytes;
+    }
+
+    async function deriveKey(password, salt, iter) {
+        const enc = new TextEncoder();
+        const key = await crypto.subtle.importKey(
+            'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
+        );
+        return crypto.subtle.deriveKey(
+            { name: 'PBKDF2', salt: salt, iterations: iter, hash: 'SHA-256' },
+            key, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+        );
+    }
+
+    async function decryptFile(ciphertext, key, iv, tag) {
+        const data = new Uint8Array(ciphertext.length + tag.length);
+        data.set(ciphertext);
+        data.set(tag, ciphertext.length);
+
+        return crypto.subtle.decrypt(
+            { name: 'AES-GCM', iv: iv }, key, data
+        );
+    }
+
+    // 路径归一化：处理 ../ 和 ./
+    function normalizePath(path, basePath = '/') {
+        const parts = basePath.split('/').filter(p => p && p !== '.');
+
+        // 解析相对路径
+        const pathParts = path.split('/').filter(p => p && p !== '.');
+
+        for (const part of pathParts) {
+            if (part === '..') {
+                parts.pop();
+            } else {
+                parts.push(part);
+            }
+        }
+
+        return parts.join('/');
+    }
+
+    // 在 VFS 中查找文件，支持路径归一化
+    function resolvePath(path, basePath = '/') {
+        // 如果是绝对路径（相对于网站根目录）
+        if (path.startsWith('/')) {
+            return path.substring(1);
+        }
+
+        // 处理相对路径
+        const normalized = normalizePath(path, basePath);
+
+        // 如果归一化后的路径存在，直接返回
+        if (vfs[normalized]) {
+            return normalized;
+        }
+
+        // 尝试加上当前路径
+        const currentDir = basePath.split('/').slice(0, -1).join('/');
+        const fullPath = normalizePath(path, currentDir || '/');
+
+        return vfs[fullPath] ? fullPath : path;
+    }
+
+    async function unlock(password) {
+        try {
+            setLoading(true);
+            showMsg('Loading...', 'success');
+
+            // 下载清单
+            const manifestResp = await fetch('manifest.json');
+            manifest = await manifestResp.json();
+
+            showMsg('Downloading core files...', 'success');
+
+            // 下载核心包
+            const coreResp = await fetch('core.enc');
+            const coreData = new Uint8Array(await coreResp.arrayBuffer());
+
+            showMsg('Decrypting...', 'success');
+
+            // 解析加密参数
+            const coreMeta = manifest.core.meta;
+            const salt = b64ToBytes(coreMeta.salt);
+            const iv = b64ToBytes(coreMeta.iv);
+            const tag = b64ToBytes(coreMeta.tag);
+            const ciphertext = coreData.slice(48);
+
+            // 派生密钥并解密
+            const key = await deriveKey(password, salt, manifest.iterations);
+            const decrypted = await decryptFile(ciphertext, key, iv, tag);
+
+            // 解压 ZIP 到虚拟文件系统
+            const zip = await JSZip.loadAsync(decrypted);
+
+            for (const [path, entry] of Object.entries(zip.files)) {
+                if (!entry.dir) {
+                    const content = await entry.async('uint8array');
+                    // 处理路径：移除开头的点
+                    let cleanPath = path.replace(/^\.\//, '').replace(/\\/g, '/');
+                    vfs[cleanPath] = content;
+                }
+            }
+
+            console.log('Loaded files:', Object.keys(vfs).length);
+            console.log('Sample files:', Object.keys(vfs).slice(0, 20));
+
+            // 显示首页
+            loadSite();
+
+            showMsg('✓ Unlocked successfully!', 'success');
+
+            setTimeout(() => {
+                lockScreen.style.display = 'none';
+                siteContainer.classList.add('loaded');
+                document.body.style.background = '';
+            }, 500);
+
+        } catch (e) {
+            console.error(e);
+            showMsg('Password incorrect or decryption failed', 'error');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    function loadSite() {
+        let html = null;
+        for (const name of ['index.html', 'index.htm']) {
+            if (vfs[name]) {
+                html = new TextDecoder().decode(vfs[name]);
+                currentPath = 'index.html';
+                break;
+            }
+        }
+
+        if (!html) throw new Error('index.html not found');
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
+        // 处理样式
+        doc.querySelectorAll('head style').forEach(el => {
+            const s = document.createElement('style');
+            s.textContent = el.textContent;
+            document.head.appendChild(s);
+        });
+
+        doc.querySelectorAll('head link[rel="stylesheet"]').forEach(el => {
+            const href = el.getAttribute('href');
+            if (href && vfs[href]) {
+                const s = document.createElement('style');
+                s.textContent = new TextDecoder().decode(vfs[href]);
+                document.head.appendChild(s);
+            } else if (href) {
+                document.head.appendChild(el.cloneNode(true));
+            }
+        });
+
+        // 处理脚本
+        const scripts = Array.from(doc.querySelectorAll('head script'));
+        const headScripts = scripts.filter(s => !s.async && !s.defer);
+        const asyncScripts = scripts.filter(s => s.async || s.defer);
+
+        // 执行同步脚本
+        headScripts.forEach(el => {
+            if (el.src) {
+                const src = el.getAttribute('src');
+                if (vfs[src]) {
+                    const s = document.createElement('script');
+                    s.textContent = new TextDecoder().decode(vfs[src]);
+                    document.head.appendChild(s);
+                } else {
+                    const s = document.createElement('script');
+                    s.src = src;
+                    s.async = false;
+                    document.head.appendChild(s);
+                }
+            } else {
+                const s = document.createElement('script');
+                s.textContent = el.textContent;
+                document.head.appendChild(s);
+            }
+        });
+
+        // 设置 body 内容
+        siteContainer.innerHTML = doc.body.innerHTML;
+
+        // 处理所有链接，拦截页面跳转
+        setupLinkInterception();
+
+        // 处理所有资源
+        processAllResources();
+
+        // 执行异步脚本
+        asyncScripts.forEach(el => {
+            if (el.src) {
+                const src = el.getAttribute('src');
+                if (vfs[src]) {
+                    const s = document.createElement('script');
+                    s.textContent = new TextDecoder().decode(vfs[src]);
+                    siteContainer.appendChild(s);
+                } else {
+                    const s = document.createElement('script');
+                    s.src = src;
+                    siteContainer.appendChild(s);
+                }
+            } else {
+                const s = document.createElement('script');
+                s.textContent = el.textContent;
+                siteContainer.appendChild(s);
+            }
+        });
+    }
+
+    // 处理所有资源（图片、CSS、背景图等）
+    function processAllResources() {
+        // 处理图片
+        siteContainer.querySelectorAll('img').forEach(img => {
+            const src = img.getAttribute('src');
+            if (src) {
+                const resolvedPath = resolvePath(src, currentPath);
+                console.log('Image:', src, '->', resolvedPath, 'exists:', !!vfs[resolvedPath]);
+
+                if (vfs[resolvedPath]) {
+                    const mimeType = getMimeType(resolvedPath);
+                    const blob = new Blob([vfs[resolvedPath]], { type: mimeType });
+                    img.src = URL.createObjectURL(blob);
+                }
+            }
+        });
+
+        // 处理 CSS 中的背景图
+        const processBackgrounds = (element) => {
+            const computedStyle = window.getComputedStyle(element);
+            const bgImage = computedStyle.backgroundImage;
+
+            if (bgImage && bgImage !== 'none' && bgImage.includes('url(')) {
+                const urlMatch = bgImage.match(/url\(['"]?([^'")]+)['"]?\)/);
+                if (urlMatch && urlMatch[2]) {
+                    const imagePath = urlMatch[2];
+                    const resolvedPath = resolvePath(imagePath, currentPath);
+
+                    if (vfs[resolvedPath]) {
+                        const mimeType = getMimeType(resolvedPath);
+                        const blob = new Blob([vfs[resolvedPath]], { type: mimeType });
+                        element.style.backgroundImage = `url('${URL.createObjectURL(blob)}')`;
+                        console.log('Background:', imagePath, '->', resolvedPath);
+                    }
+                }
+            }
+
+            // 递归处理子元素
+            Array.from(element.children).forEach(processBackgrounds);
+        };
+
+        processBackgrounds(siteContainer);
+    }
+
+    // 拦截链接跳转
+    function setupLinkInterception() {
+        siteContainer.addEventListener('click', function(e) {
+            const link = e.target.closest('a');
+            if (!link) return;
+
+            const href = link.getAttribute('href');
+            if (!href) return;
+
+            console.log('Link clicked:', href);
+
+            // 处理外部链接
+            if (href.startsWith('http://') || href.startsWith('https://')) {
+                e.preventDefault();
+                window.open(href, '_blank');
+                return;
+            }
+
+            // 处理锚点链接
+            if (href.startsWith('#')) {
+                return;
+            }
+
+            // 处理页面跳转
+            e.preventDefault();
+            e.stopPropagation();
+
+            const resolvedPath = resolvePath(href, currentPath);
+            console.log('Loading page:', href, '->', resolvedPath);
+
+            loadPage(resolvedPath, href);
+        }, true);
+    }
+
+    function loadPage(resolvedPath, originalPath) {
+        if (!vfs[resolvedPath]) {
+            console.error('Page not found:', resolvedPath);
+            console.log('Available files:', Object.keys(vfs).slice(0, 30));
+            alert('Page not found: ' + originalPath);
+            return;
+        }
+
+        // 加载新页面
+        const html = new TextDecoder().decode(vfs[resolvedPath]);
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
+        // 更新当前路径
+        currentPath = resolvedPath;
+
+        // 更新内容
+        siteContainer.innerHTML = doc.body.innerHTML;
+
+        // 重新处理资源
+        processAllResources();
+
+        // 重新设置链接拦截
+        setupLinkInterception();
+
+        // 执行页面脚本
+        doc.querySelectorAll('script').forEach(el => {
+            const newScript = document.createElement('script');
+            newScript.textContent = el.textContent;
+            siteContainer.appendChild(newScript);
+        });
+
+        console.log('Page loaded:', resolvedPath);
+    }
+
+    function getMimeType(path) {
+        const ext = path.split('.').pop().toLowerCase();
+        const types = {
+            png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+            gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
+            css: 'text/css', js: 'application/javascript',
+            html: 'text/html', ico: 'image/x-icon'
+        };
+        return types[ext] || 'application/octet-stream';
+    }
+
+    form.onsubmit = e => {
+        e.preventDefault();
+        const p = pwd.value;
+        if (!p) { showMsg('Enter password', 'error'); return; }
+        unlock(p);
+    };
+    </script>
+</body>
+</html>
