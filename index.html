@@ -462,6 +462,27 @@
         // 更新当前路径
         currentPath = resolvedPath;
 
+        // 加载页面的样式（重要：详情页的样式在 head 中）
+        doc.querySelectorAll('head style').forEach(el => {
+            // 检查是否已存在相同内容的样式
+            const existingStyle = Array.from(document.head.querySelectorAll('style'))
+                .find(s => s.textContent === el.textContent);
+            if (!existingStyle) {
+                const s = document.createElement('style');
+                s.textContent = el.textContent;
+                s.setAttribute('data-page', resolvedPath); // 标记来源页面
+                document.head.appendChild(s);
+            }
+        });
+
+        // 清理旧页面的样式
+        document.head.querySelectorAll('style[data-page]').forEach(el => {
+            const pagePath = el.getAttribute('data-page');
+            if (pagePath !== resolvedPath) {
+                el.remove();
+            }
+        });
+
         // 更新内容
         siteContainer.innerHTML = doc.body.innerHTML;
 
