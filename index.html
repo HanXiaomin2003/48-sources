@@ -107,6 +107,7 @@
     let vfs = {}; // 虚拟文件系统
     let currentPath = 'index.html'; // 当前路径
     let loadedScripts = new Set(); // 已加载的脚本
+    let activeBlobUrls = new Set(); // 跟踪创建的 blob URL
 
     function showMsg(text, type) {
         msg.textContent = text;
@@ -171,7 +172,7 @@
         // 如果是绝对路径（相对于网站根目录，以 / 开头）
         if (path.startsWith('/')) {
             const clean = path.substring(1);
-            return vfs[clean] ? clean : path;
+            if (vfs[clean]) return clean;
         }
 
         // 处理相对路径
@@ -261,6 +262,26 @@
         }
     }
 
+    // 创建 blob URL 并跟踪
+    function createTrackedBlobUrl(data, mimeType) {
+        const blob = new Blob([data], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        activeBlobUrls.add(url);
+        return url;
+    }
+
+    // 清理旧的 blob URL
+    function cleanupBlobUrls() {
+        activeBlobUrls.forEach(url => {
+            try {
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                // 忽略已失效的 URL
+            }
+        });
+        activeBlobUrls.clear();
+    }
+
     async function loadSite() {
         let html = null;
         for (const name of ['index.html', 'index.htm']) {
@@ -280,18 +301,8 @@
         doc.querySelectorAll('head style').forEach(el => {
             const s = document.createElement('style');
             s.textContent = el.textContent;
+            s.setAttribute('data-page', 'index');
             document.head.appendChild(s);
-        });
-
-        doc.querySelectorAll('head link[rel="stylesheet"]').forEach(el => {
-            const href = el.getAttribute('href');
-            if (href && vfs[href]) {
-                const s = document.createElement('style');
-                s.textContent = new TextDecoder().decode(vfs[href]);
-                document.head.appendChild(s);
-            } else if (href) {
-                document.head.appendChild(el.cloneNode(true));
-            }
         });
 
         // 加载外部脚本（如 Plotly）
@@ -312,7 +323,7 @@
         // 设置 body 内容
         siteContainer.innerHTML = doc.body.innerHTML;
 
-        // 移除所有源项的 onclick 属性，避免触发未定义的函数
+        // 移除所有源项的 onclick 属性
         siteContainer.querySelectorAll('.source-item').forEach(item => {
             item.removeAttribute('onclick');
         });
@@ -332,6 +343,12 @@
     // 加载外部脚本
     function loadExternalScript(src) {
         return new Promise((resolve, reject) => {
+            // 检查是否已加载
+            if (document.querySelector(`script[src="${src}"]`)) {
+                resolve();
+                return;
+            }
+
             const script = document.createElement('script');
             script.src = src;
             script.onload = resolve;
@@ -340,9 +357,15 @@
         });
     }
 
-    // 设置源列表点击委托（用于首页）
+    // 设置源列表点击委托（全局处理所有页面的源点击）
     function setupSourceDelegation() {
-        siteContainer.addEventListener('click', function(e) {
+        // 移除旧的事件监听器（通过克隆节点）
+        const newContainer = siteContainer.cloneNode(false);
+        siteContainer.parentNode.replaceChild(newContainer, siteContainer);
+        // 恢复引用
+        const container = document.getElementById('site-container');
+
+        container.addEventListener('click', function(e) {
             const sourceItem = e.target.closest('.source-item[data-srcid]');
             if (!sourceItem) return;
 
@@ -350,22 +373,35 @@
             e.stopPropagation();
 
             const srcid = sourceItem.getAttribute('data-srcid');
-            console.log('Source clicked:', srcid);
+            console.log('Source clicked:', srcid, 'from path:', currentPath);
 
-            // 更新选中状态
-            siteContainer.querySelectorAll('.source-item').forEach(item => {
-                item.classList.remove('active');
+            // 如果当前已经在该源的详情页，不做任何事
+            if (currentPath === `sources/${srcid}.html`) {
+                console.log('Already on this source page');
+                return;
+            }
+
+            // 更新选中状态（更新所有源列表）
+            container.querySelectorAll('.source-item[data-srcid]').forEach(item => {
+                if (item.getAttribute('data-srcid') === srcid) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
             });
-            sourceItem.classList.add('active');
 
             // 加载详情页
-            const resolvedPath = resolvePath(`sources/${srcid}.html`, currentPath);
+            const resolvedPath = `sources/${srcid}.html`;
+            console.log('Loading source page:', resolvedPath);
             loadPage(resolvedPath, `sources/${srcid}.html`);
         }, true);
     }
 
     // 处理所有资源（图片、CSS、背景图等）
     function processAllResources() {
+        // 清理旧的 blob URL
+        cleanupBlobUrls();
+
         // 处理图片
         siteContainer.querySelectorAll('img').forEach(img => {
             const src = img.getAttribute('src');
@@ -375,17 +411,25 @@
 
                 if (vfs[resolvedPath]) {
                     const mimeType = getMimeType(resolvedPath);
-                    const blob = new Blob([vfs[resolvedPath]], { type: mimeType });
-                    img.src = URL.createObjectURL(blob);
-                } else if (img.hasAttribute('onerror')) {
-                    // 保留 onerror 处理，尝试备用路径
-                    console.log('Primary image not found, will use onerror fallback:', src);
+                    const blobUrl = createTrackedBlobUrl(vfs[resolvedPath], mimeType);
+                    img.src = blobUrl;
+                } else {
+                    console.warn('Image not found:', resolvedPath);
+                    // 尝试备用路径
+                    const fallbackPath = src.replace('../', '');
+                    if (vfs[fallbackPath]) {
+                        const mimeType = getMimeType(fallbackPath);
+                        const blobUrl = createTrackedBlobUrl(vfs[fallbackPath], mimeType);
+                        img.src = blobUrl;
+                    }
                 }
             }
         });
 
         // 处理 CSS 中的背景图
         const processBackgrounds = (element) => {
+            if (!element || !element.style) return;
+
             const computedStyle = window.getComputedStyle(element);
             const bgImage = computedStyle.backgroundImage;
 
@@ -397,8 +441,8 @@
 
                     if (vfs[resolvedPath]) {
                         const mimeType = getMimeType(resolvedPath);
-                        const blob = new Blob([vfs[resolvedPath]], { type: mimeType });
-                        element.style.backgroundImage = `url('${URL.createObjectURL(blob)}')`;
+                        const blobUrl = createTrackedBlobUrl(vfs[resolvedPath], mimeType);
+                        element.style.backgroundImage = `url('${blobUrl}')`;
                         console.log('Background:', imagePath, '->', resolvedPath);
                     }
                 }
@@ -454,6 +498,8 @@
             return;
         }
 
+        console.log('Loading page:', resolvedPath);
+
         // 加载新页面
         const html = new TextDecoder().decode(vfs[resolvedPath]);
         const parser = new DOMParser();
@@ -462,15 +508,18 @@
         // 更新当前路径
         currentPath = resolvedPath;
 
+        // 清理旧的 blob URL
+        cleanupBlobUrls();
+
         // 加载页面的样式（重要：详情页的样式在 head 中）
         doc.querySelectorAll('head style').forEach(el => {
             // 检查是否已存在相同内容的样式
-            const existingStyle = Array.from(document.head.querySelectorAll('style'))
+            const existingStyle = Array.from(document.head.querySelectorAll('style[data-page]'))
                 .find(s => s.textContent === el.textContent);
             if (!existingStyle) {
                 const s = document.createElement('style');
                 s.textContent = el.textContent;
-                s.setAttribute('data-page', resolvedPath); // 标记来源页面
+                s.setAttribute('data-page', resolvedPath);
                 document.head.appendChild(s);
             }
         });
@@ -478,7 +527,7 @@
         // 清理旧页面的样式
         document.head.querySelectorAll('style[data-page]').forEach(el => {
             const pagePath = el.getAttribute('data-page');
-            if (pagePath !== resolvedPath) {
+            if (pagePath !== resolvedPath && pagePath !== 'index') {
                 el.remove();
             }
         });
@@ -508,17 +557,21 @@
         // 执行页面脚本（包括生成光谱图）
         const scripts = doc.querySelectorAll('script');
         for (const scriptEl of scripts) {
-            const newScript = document.createElement('script');
-
             if (scriptEl.src) {
                 const src = scriptEl.getAttribute('src');
                 if (!loadedScripts.has(src)) {
                     await loadExternalScript(src);
                     loadedScripts.add(src);
                 }
-            } else {
-                newScript.textContent = scriptEl.textContent;
-                siteContainer.appendChild(newScript);
+            } else if (scriptEl.textContent.trim()) {
+                // 执行内联脚本
+                try {
+                    const newScript = document.createElement('script');
+                    newScript.textContent = scriptEl.textContent;
+                    siteContainer.appendChild(newScript);
+                } catch (e) {
+                    console.error('Error executing script:', e);
+                }
             }
         }
 
