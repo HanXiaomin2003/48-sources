@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Protected Site</title>
     <style>
-        /* 解锁界面专用样式 - 不影响原网站 */
+        /* 解锁界面专用样式 - 完全限定在 #lockScreen 下，不影响原网站 */
         #lockScreen * { margin: 0; padding: 0; box-sizing: border-box; }
         #lockScreen {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -77,12 +77,12 @@
         }
         @keyframes lockScreen-spin { to { transform: rotate(360deg); } }
 
-        /* 网站容器样式 */
+        /* 网站容器样式 - 不限制高度和滚动 */
         #site-container { display: none; }
         #site-container.loaded {
             display: block;
             width: 100%;
-            /* 不设置高度和overflow，允许自然滚动 */
+            /* 允许自然滚动，不设置 height 或 overflow */
         }
     </style>
 </head>
@@ -104,7 +104,7 @@
 
     <div id="site-container"></div>
 
-    <!-- 页面样式容器 -->
+    <!-- 页面样式容器 - 用于动态加载各页面的样式 -->
     <style id="vfs-page-style"></style>
 
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -377,11 +377,10 @@
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
 
-        // 加载首页样式
-        pageStyle.textContent = '';
-        doc.querySelectorAll('head style').forEach(el => {
-            pageStyle.textContent += el.textContent;
-        });
+        // 加载首页样式到 vfs-page-style
+        pageStyle.textContent = Array.from(doc.head.querySelectorAll('style'))
+            .map(style => style.textContent)
+            .join('\n');
 
         // 加载外部脚本
         const externalScripts = [];
@@ -498,11 +497,11 @@
         // 清理旧的 blob URL
         cleanupBlobUrls();
 
-        // 替换页面样式
-        pageStyle.textContent = '';
-        doc.querySelectorAll('head style').forEach(el => {
-            pageStyle.textContent += el.textContent;
-        });
+        // 【关键修复】同步新页面的 <style> 内容到 vfs-page-style
+        pageStyle.textContent = Array.from(doc.head.querySelectorAll('style'))
+            .map(style => style.textContent)
+            .join('\n');
+        console.log('Updated page styles');
 
         // 更新内容
         siteContainer.innerHTML = doc.body.innerHTML;

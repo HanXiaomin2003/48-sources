@@ -1,14 +1,14 @@
 {
-  "version": "3.2",
+  "version": "3.3",
   "algorithm": "aes-256-gcm",
   "iterations": 100000,
   "core": {
     "file": "core.enc",
     "size": 38209697,
     "meta": {
-      "salt": "1FuzFbgCtKEGsF9TIl35kA==",
-      "iv": "/Hi//zLPbZYqfAIECjYzNw==",
-      "tag": "o1MQgjnuuZw8bnMQIH3NsQ=="
+      "salt": "95/TwjOdR4tYpMM5kn6gwQ==",
+      "iv": "oyUmXlAXgLufcfLJkYpB3A==",
+      "tag": "MUVDqAcE5IVxxQphVFDhYw=="
     }
   },
   "includes": "\u6240\u6709 HTML\u3001CSS\u3001JS \u548c\u56fe\u7247\u6587\u4ef6"
