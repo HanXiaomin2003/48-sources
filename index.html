@@ -529,7 +529,9 @@
             } else if (scriptEl.textContent.trim()) {
                 try {
                     const newScript = document.createElement('script');
-                    newScript.textContent = scriptEl.textContent;
+                    // 每个 source 页面的脚本在独立函数作用域执行，
+                    // 避免 const spectrumData、selectSource 等名称与前一页冲突。
+                    newScript.textContent = '(function() { try { ' + scriptEl.textContent + ' } catch (error) { console.error("Source page script failed:", error); } })();';
                     siteContainer.appendChild(newScript);
                 } catch (e) {
                     console.error('Error executing script:', e);
