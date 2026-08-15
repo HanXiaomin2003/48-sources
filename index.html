@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Protected Site</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
+        /* 解锁界面专用样式 - 不影响原网站 */
+        #lockScreen * { margin: 0; padding: 0; box-sizing: border-box; }
+        #lockScreen {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             min-height: 100vh;
@@ -14,8 +15,14 @@
             align-items: center;
             justify-content: center;
             padding: 20px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 9999;
         }
-        .container {
+        #lockScreen .container {
             background: rgba(255, 255, 255, 0.95);
             border-radius: 16px;
             box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
@@ -24,54 +31,59 @@
             width: 100%;
             text-align: center;
         }
-        .icon { font-size: 64px; margin-bottom: 24px; }
-        h1 { font-size: 28px; color: #1a1a2e; margin-bottom: 12px; }
-        .subtitle {
+        #lockScreen .icon { font-size: 64px; margin-bottom: 24px; }
+        #lockScreen h1 { font-size: 28px; color: #1a1a2e; margin-bottom: 12px; }
+        #lockScreen .subtitle {
             font-size: 14px; color: #666;
             margin-bottom: 32px; line-height: 1.6;
         }
-        .input-group { margin-bottom: 24px; text-align: left; }
-        .input-group label {
+        #lockScreen .input-group { margin-bottom: 24px; text-align: left; }
+        #lockScreen .input-group label {
             display: block; font-size: 13px; font-weight: 600;
             color: #444; margin-bottom: 8px; text-transform: uppercase;
         }
-        input[type="password"] {
+        #lockScreen input[type="password"] {
             width: 100%; padding: 16px;
             border: 2px solid #e0e0e0; border-radius: 10px;
             font-size: 16px; transition: border-color 0.3s;
         }
-        input[type="password"]:focus {
+        #lockScreen input[type="password"]:focus {
             outline: none; border-color: #4a90e2;
         }
-        button {
+        #lockScreen button {
             width: 100%; padding: 16px;
             background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
             color: white; border: none; border-radius: 10px;
             font-size: 16px; font-weight: 600; cursor: pointer;
             transition: all 0.2s;
         }
-        button:hover:not(:disabled) {
+        #lockScreen button:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 8px 20px rgba(74, 144, 226, 0.3);
         }
-        button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-        .message {
+        #lockScreen button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        #lockScreen .message {
             margin-top: 24px; padding: 14px;
             border-radius: 8px; font-size: 14px;
         }
-        .error { background: #fee; color: #c33; }
-        .success { background: #efe; color: #3c3; }
-        .spinner {
+        #lockScreen .error { background: #fee; color: #c33; }
+        #lockScreen .success { background: #efe; color: #3c3; }
+        #lockScreen .spinner {
             display: inline-block; width: 14px; height: 14px;
             border: 2px solid #fff; border-radius: 50%;
             border-top-color: transparent;
-            animation: spin 0.6s linear infinite;
+            animation: lockScreen-spin 0.6s linear infinite;
             margin-right: 8px;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes lockScreen-spin { to { transform: rotate(360deg); } }
 
+        /* 网站容器样式 */
         #site-container { display: none; }
-        #site-container.loaded { display: block; width: 100%; min-height: 100vh; }
+        #site-container.loaded {
+            display: block;
+            width: 100%;
+            /* 不设置高度和overflow，允许自然滚动 */
+        }
     </style>
 </head>
 <body>
@@ -92,6 +104,9 @@
 
     <div id="site-container"></div>
 
+    <!-- 页面样式容器 -->
+    <style id="vfs-page-style"></style>
+
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 
     <script>
@@ -102,12 +117,14 @@
     const msg = document.getElementById('msg');
     const lockScreen = document.getElementById('lockScreen');
     const siteContainer = document.getElementById('site-container');
+    const pageStyle = document.getElementById('vfs-page-style');
 
     let manifest = null;
     let vfs = {}; // 虚拟文件系统
     let currentPath = 'index.html'; // 当前路径
     let loadedScripts = new Set(); // 已加载的脚本
     let activeBlobUrls = new Set(); // 跟踪创建的 blob URL
+    let eventListenersSetup = false; // 事件监听器是否已设置
 
     function showMsg(text, type) {
         msg.textContent = text;
@@ -149,10 +166,7 @@
 
     // 路径归一化：处理 ../ 和 ./
     function normalizePath(path, basePath = '/') {
-        // 获取当前文件所在目录
         const currentDir = basePath.split('/').slice(0, -1).join('/');
-
-        // 解析路径段
         const pathParts = path.split('/').filter(p => p && p !== '.');
         let result = currentDir ? currentDir.split('/').filter(p => p && p !== '.') : [];
 
@@ -169,32 +183,18 @@
 
     // 在 VFS 中查找文件，支持路径归一化
     function resolvePath(path, basePath = '/') {
-        // 如果是绝对路径（相对于网站根目录，以 / 开头）
         if (path.startsWith('/')) {
             const clean = path.substring(1);
             if (vfs[clean]) return clean;
         }
 
-        // 处理相对路径
         const normalized = normalizePath(path, basePath);
+        if (vfs[normalized]) return normalized;
+        if (vfs[path]) return path;
 
-        // 尝试归一化路径
-        if (vfs[normalized]) {
-            return normalized;
-        }
-
-        // 尝试原始路径
-        if (vfs[path]) {
-            return path;
-        }
-
-        // 尝试加上当前目录
         const currentDir = basePath.split('/').slice(0, -1).join('/');
         const fullPath = currentDir ? `${currentDir}/${path}` : path;
-
-        if (vfs[fullPath]) {
-            return fullPath;
-        }
+        if (vfs[fullPath]) return fullPath;
 
         console.warn('Path not found in VFS:', path, 'tried:', normalized, fullPath);
         return path;
@@ -205,45 +205,37 @@
             setLoading(true);
             showMsg('Loading...', 'success');
 
-            // 下载清单
             const manifestResp = await fetch('manifest.json');
             manifest = await manifestResp.json();
 
             showMsg('Downloading core files...', 'success');
 
-            // 下载核心包
             const coreResp = await fetch('core.enc');
             const coreData = new Uint8Array(await coreResp.arrayBuffer());
 
             showMsg('Decrypting...', 'success');
 
-            // 解析加密参数
             const coreMeta = manifest.core.meta;
             const salt = b64ToBytes(coreMeta.salt);
             const iv = b64ToBytes(coreMeta.iv);
             const tag = b64ToBytes(coreMeta.tag);
             const ciphertext = coreData.slice(48);
 
-            // 派生密钥并解密
             const key = await deriveKey(password, salt, manifest.iterations);
             const decrypted = await decryptFile(ciphertext, key, iv, tag);
 
-            // 解压 ZIP 到虚拟文件系统
             const zip = await JSZip.loadAsync(decrypted);
 
             for (const [path, entry] of Object.entries(zip.files)) {
                 if (!entry.dir) {
                     const content = await entry.async('uint8array');
-                    // 处理路径：移除开头的点
                     let cleanPath = path.replace(/^\.\//, '').replace(/\\/g, '/');
                     vfs[cleanPath] = content;
                 }
             }
 
             console.log('Loaded files:', Object.keys(vfs).length);
-            console.log('Sample files:', Object.keys(vfs).slice(0, 20));
 
-            // 显示首页
             await loadSite();
 
             showMsg('✓ Unlocked successfully!', 'success');
@@ -251,7 +243,6 @@
             setTimeout(() => {
                 lockScreen.style.display = 'none';
                 siteContainer.classList.add('loaded');
-                document.body.style.background = '';
             }, 500);
 
         } catch (e) {
@@ -273,13 +264,102 @@
     // 清理旧的 blob URL
     function cleanupBlobUrls() {
         activeBlobUrls.forEach(url => {
-            try {
-                URL.revokeObjectURL(url);
-            } catch (e) {
-                // 忽略已失效的 URL
-            }
+            try { URL.revokeObjectURL(url); } catch (e) {}
         });
         activeBlobUrls.clear();
+    }
+
+    // 从 onclick 提取源 ID
+    function extractSourceIdFromOnclick(element) {
+        const onclick = element.getAttribute('onclick');
+        if (onclick && onclick.includes("selectSource('")) {
+            const match = onclick.match(/selectSource\('([^']+)'\)/);
+            if (match && match[1]) {
+                return match[1];
+            }
+        }
+        return element.getAttribute('data-srcid');
+    }
+
+    // 为所有源项设置 data-srcid
+    function setupSourceDataAttributes(container) {
+        container.querySelectorAll('.source-item').forEach(item => {
+            if (!item.hasAttribute('data-srcid')) {
+                const srcid = extractSourceIdFromOnclick(item);
+                if (srcid) {
+                    item.setAttribute('data-srcid', srcid);
+                }
+            }
+            // 移除 onclick 避免触发原页面函数
+            item.removeAttribute('onclick');
+        });
+    }
+
+    // 设置全局事件监听器（只设置一次）
+    function setupGlobalEventListeners() {
+        if (eventListenersSetup) return;
+        eventListenersSetup = true;
+
+        // 源列表点击代理
+        document.addEventListener('click', function(e) {
+            const sourceItem = e.target.closest('.source-item[data-srcid]');
+            if (!sourceItem || !siteContainer.contains(sourceItem)) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const srcid = sourceItem.getAttribute('data-srcid');
+            console.log('Source clicked:', srcid, 'from path:', currentPath);
+
+            // 如果当前已经在该源的详情页，不做任何事
+            if (currentPath === `sources/${srcid}.html`) {
+                console.log('Already on this source page');
+                return;
+            }
+
+            // 更新所有源列表的激活状态
+            siteContainer.querySelectorAll('.source-item[data-srcid]').forEach(item => {
+                if (item.getAttribute('data-srcid') === srcid) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+
+            // 加载详情页
+            const resolvedPath = `sources/${srcid}.html`;
+            console.log('Loading source page:', resolvedPath);
+            loadPage(resolvedPath);
+        }, true);
+
+        // 链接点击代理
+        document.addEventListener('click', function(e) {
+            const link = e.target.closest('a');
+            if (!link || !siteContainer.contains(link)) return;
+
+            const href = link.getAttribute('href');
+            if (!href) return;
+
+            // 处理外部链接
+            if (href.startsWith('http://') || href.startsWith('https://')) {
+                e.preventDefault();
+                window.open(href, '_blank');
+                return;
+            }
+
+            // 处理锚点链接
+            if (href.startsWith('#')) return;
+
+            // 处理页面跳转
+            e.preventDefault();
+            e.stopPropagation();
+
+            const resolvedPath = resolvePath(href, currentPath);
+            console.log('Loading page:', href, '->', resolvedPath);
+            loadPage(resolvedPath);
+        }, true);
+
+        console.log('Global event listeners setup complete');
     }
 
     async function loadSite() {
@@ -297,15 +377,13 @@
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
 
-        // 处理样式
+        // 加载首页样式
+        pageStyle.textContent = '';
         doc.querySelectorAll('head style').forEach(el => {
-            const s = document.createElement('style');
-            s.textContent = el.textContent;
-            s.setAttribute('data-page', 'index');
-            document.head.appendChild(s);
+            pageStyle.textContent += el.textContent;
         });
 
-        // 加载外部脚本（如 Plotly）
+        // 加载外部脚本
         const externalScripts = [];
         doc.querySelectorAll('head script[src]').forEach(el => {
             const src = el.getAttribute('src');
@@ -315,35 +393,25 @@
             }
         });
 
-        // 等待外部脚本加载完成
         for (const src of externalScripts) {
             await loadExternalScript(src);
         }
 
-        // 设置 body 内容
+        // 设置内容
         siteContainer.innerHTML = doc.body.innerHTML;
 
-        // 移除所有源项的 onclick 属性
-        siteContainer.querySelectorAll('.source-item').forEach(item => {
-            item.removeAttribute('onclick');
-        });
+        // 设置源数据属性和事件监听器
+        setupSourceDataAttributes(siteContainer);
+        setupGlobalEventListeners();
 
-        // 设置事件委托处理源点击
-        setupSourceDelegation();
-
-        // 处理所有资源（图片）
+        // 处理资源
         processAllResources();
-
-        // 设置链接拦截
-        setupLinkInterception();
 
         console.log('Site loaded successfully');
     }
 
-    // 加载外部脚本
     function loadExternalScript(src) {
         return new Promise((resolve, reject) => {
-            // 检查是否已加载
             if (document.querySelector(`script[src="${src}"]`)) {
                 resolve();
                 return;
@@ -357,52 +425,10 @@
         });
     }
 
-    // 设置源列表点击委托（全局处理所有页面的源点击）
-    function setupSourceDelegation() {
-        // 移除旧的事件监听器（通过克隆节点）
-        const newContainer = siteContainer.cloneNode(false);
-        siteContainer.parentNode.replaceChild(newContainer, siteContainer);
-        // 恢复引用
-        const container = document.getElementById('site-container');
-
-        container.addEventListener('click', function(e) {
-            const sourceItem = e.target.closest('.source-item[data-srcid]');
-            if (!sourceItem) return;
-
-            e.preventDefault();
-            e.stopPropagation();
-
-            const srcid = sourceItem.getAttribute('data-srcid');
-            console.log('Source clicked:', srcid, 'from path:', currentPath);
-
-            // 如果当前已经在该源的详情页，不做任何事
-            if (currentPath === `sources/${srcid}.html`) {
-                console.log('Already on this source page');
-                return;
-            }
-
-            // 更新选中状态（更新所有源列表）
-            container.querySelectorAll('.source-item[data-srcid]').forEach(item => {
-                if (item.getAttribute('data-srcid') === srcid) {
-                    item.classList.add('active');
-                } else {
-                    item.classList.remove('active');
-                }
-            });
-
-            // 加载详情页
-            const resolvedPath = `sources/${srcid}.html`;
-            console.log('Loading source page:', resolvedPath);
-            loadPage(resolvedPath, `sources/${srcid}.html`);
-        }, true);
-    }
-
-    // 处理所有资源（图片、CSS、背景图等）
+    // 处理所有资源
     function processAllResources() {
-        // 清理旧的 blob URL
         cleanupBlobUrls();
 
-        // 处理图片
         siteContainer.querySelectorAll('img').forEach(img => {
             const src = img.getAttribute('src');
             if (src) {
@@ -416,7 +442,7 @@
                 } else {
                     console.warn('Image not found:', resolvedPath);
                     // 尝试备用路径
-                    const fallbackPath = src.replace('../', '');
+                    const fallbackPath = src.replace(/\.\.\//g, '');
                     if (vfs[fallbackPath]) {
                         const mimeType = getMimeType(fallbackPath);
                         const blobUrl = createTrackedBlobUrl(vfs[fallbackPath], mimeType);
@@ -426,7 +452,7 @@
             }
         });
 
-        // 处理 CSS 中的背景图
+        // 处理背景图
         const processBackgrounds = (element) => {
             if (!element || !element.style) return;
 
@@ -443,64 +469,25 @@
                         const mimeType = getMimeType(resolvedPath);
                         const blobUrl = createTrackedBlobUrl(vfs[resolvedPath], mimeType);
                         element.style.backgroundImage = `url('${blobUrl}')`;
-                        console.log('Background:', imagePath, '->', resolvedPath);
                     }
                 }
             }
 
-            // 递归处理子元素
             Array.from(element.children).forEach(processBackgrounds);
         };
 
         processBackgrounds(siteContainer);
     }
 
-    // 拦截链接跳转
-    function setupLinkInterception() {
-        siteContainer.addEventListener('click', function(e) {
-            const link = e.target.closest('a');
-            if (!link) return;
-
-            const href = link.getAttribute('href');
-            if (!href) return;
-
-            console.log('Link clicked:', href, 'from:', currentPath);
-
-            // 处理外部链接
-            if (href.startsWith('http://') || href.startsWith('https://')) {
-                e.preventDefault();
-                window.open(href, '_blank');
-                return;
-            }
-
-            // 处理锚点链接
-            if (href.startsWith('#')) {
-                return;
-            }
-
-            // 处理页面跳转
-            e.preventDefault();
-            e.stopPropagation();
-
-            const resolvedPath = resolvePath(href, currentPath);
-            console.log('Loading page:', href, '->', resolvedPath, 'from:', currentPath);
-
-            loadPage(resolvedPath, href);
-        }, true);
-    }
-
-    async function loadPage(resolvedPath, originalPath) {
+    async function loadPage(resolvedPath) {
         if (!vfs[resolvedPath]) {
             console.error('Page not found:', resolvedPath);
-            console.log('Available files:', Object.keys(vfs).slice(0, 30));
-            console.log('Current path:', currentPath);
-            alert('Page not found: ' + originalPath);
+            alert('Page not found: ' + resolvedPath);
             return;
         }
 
         console.log('Loading page:', resolvedPath);
 
-        // 加载新页面
         const html = new TextDecoder().decode(vfs[resolvedPath]);
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
@@ -511,50 +498,27 @@
         // 清理旧的 blob URL
         cleanupBlobUrls();
 
-        // 加载页面的样式（重要：详情页的样式在 head 中）
+        // 替换页面样式
+        pageStyle.textContent = '';
         doc.querySelectorAll('head style').forEach(el => {
-            // 检查是否已存在相同内容的样式
-            const existingStyle = Array.from(document.head.querySelectorAll('style[data-page]'))
-                .find(s => s.textContent === el.textContent);
-            if (!existingStyle) {
-                const s = document.createElement('style');
-                s.textContent = el.textContent;
-                s.setAttribute('data-page', resolvedPath);
-                document.head.appendChild(s);
-            }
-        });
-
-        // 清理旧页面的样式
-        document.head.querySelectorAll('style[data-page]').forEach(el => {
-            const pagePath = el.getAttribute('data-page');
-            if (pagePath !== resolvedPath && pagePath !== 'index') {
-                el.remove();
-            }
+            pageStyle.textContent += el.textContent;
         });
 
         // 更新内容
         siteContainer.innerHTML = doc.body.innerHTML;
 
-        // 移除所有源项的 onclick 属性
-        siteContainer.querySelectorAll('.source-item').forEach(item => {
-            item.removeAttribute('onclick');
-        });
+        // 设置源数据属性
+        setupSourceDataAttributes(siteContainer);
 
-        // 重新设置事件委托
-        setupSourceDelegation();
-
-        // 处理所有资源（图片）
+        // 处理资源
         processAllResources();
 
-        // 重新设置链接拦截
-        setupLinkInterception();
-
-        // 等待 Plotly 库（如果页面需要）
+        // 等待 Plotly
         if (typeof Plotly === 'undefined') {
             await loadExternalScript('https://cdn.plot.ly/plotly-2.27.0.min.js');
         }
 
-        // 执行页面脚本（包括生成光谱图）
+        // 执行页面脚本
         const scripts = doc.querySelectorAll('script');
         for (const scriptEl of scripts) {
             if (scriptEl.src) {
@@ -564,7 +528,6 @@
                     loadedScripts.add(src);
                 }
             } else if (scriptEl.textContent.trim()) {
-                // 执行内联脚本
                 try {
                     const newScript = document.createElement('script');
                     newScript.textContent = scriptEl.textContent;
